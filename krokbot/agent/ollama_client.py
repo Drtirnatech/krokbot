@@ -1,9 +1,10 @@
+import os
 import httpx
 from typing import List, Dict, Any, Optional
 
 class OllamaClient:
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.1:latest"):
-        self.base_url = base_url
+    def __init__(self, base_url: Optional[str] = None, model: str = "qwen2.5-coder:1.5b"):
+        self.base_url = base_url or os.getenv("OLLAMA_HOST", "http://localhost:11434")
         self.requested_model = model
         self.active_model = self._auto_detect_model(model)
 
