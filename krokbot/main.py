@@ -3,16 +3,22 @@ import threading
 import uvicorn
 import time
 from krokbot.bridge.main import app as bridge_app
-from krokbot.dashboard.server import app as dashboard_app, export_health_report
+from krokbot.dashboard.server import app as dashboard_app, export_health_report, set_scheduler_manager
 from krokbot.agent.core import KrokBotAgent
+from krokbot.scheduler.manager import CronSchedulerManager
 
 def start_server(app, port):
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
 
 def main():
     print("=" * 60)
     print("  KrokBot - Autonomous Workstation Health Agent PoC")
     print("=" * 60)
+
+    # Initialize Cron Scheduler Manager
+    scheduler = CronSchedulerManager()
+    scheduler.start()
+    set_scheduler_manager(scheduler)
 
     # 1. Start Host Bridge in background thread (port 8990)
     print("[1/4] Starting Host API Bridge on http://localhost:8990 ...")
@@ -28,7 +34,7 @@ def main():
 
     # 3. Initialize and run KrokBot Agent
     print("[3/4] Running KrokBot Health Diagnostic Task via Local Ollama...")
-    agent = KrokBotAgent()
+    agent = KrokBotAgent(scheduler_manager=scheduler)
     task_prompt = "Check workstation health, OS, storage, and active services, and output diagnostic summary."
     result = agent.run_task(task_prompt)
 

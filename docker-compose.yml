@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  krokbot:
+    build: .
+    container_name: krokbot_agent
+    restart: unless-stopped
+    ports:
+      - "5150:5150"
+      - "8990:8990"
+    volumes:
+      - ./data:/app/data
+      - ./krokbot_health_report.md:/app/krokbot_health_report.md
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
