@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KrokBot Workstation Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="dashboard-header">
+        <h1>KrokBot Workstation Health Dashboard</h1>
+        <p>Autonomous AI Agent Diagnostics & Compute Sandbox</p>
+    </div>
+
+    <div class="card-grid">
+        <div class="card">
+            <h3>CPU Usage</h3>
+            <div id="cpu-val" class="metric-value">--%</div>
+        </div>
+        <div class="card">
+            <h3>Memory Usage</h3>
+            <div id="mem-val" class="metric-value">--%</div>
+        </div>
+        <div class="card">
+            <h3>Agent Status</h3>
+            <div id="agent-status" class="metric-value" style="font-size: 1.5rem; color: #4ade80;">Active</div>
+        </div>
+    </div>
+
+    <h2>Agent Activity Log</h2>
+    <div id="log-box" class="log-box">
+        [SYSTEM] Dashboard loaded. Connected to KrokBot Host Bridge.
+    </div>
+
+    <script>
+        async function fetchMetrics() {
+            try {
+                const res = await fetch('/api/metrics');
+                const data = await res.json();
+                if (data.cpu_percent !== undefined) {
+                    document.getElementById('cpu-val').innerText = data.cpu_percent + '%';
+                    document.getElementById('mem-val').innerText = data.memory_percent + '%';
+                }
+            } catch (e) {
+                console.error("Metrics fetch error", e);
+            }
+        }
+        setInterval(fetchMetrics, 3000);
+        fetchMetrics();
+    </script>
+</body>
+</html>
