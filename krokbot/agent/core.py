@@ -4,7 +4,7 @@ from krokbot.agent.tools import ToolRegistry
 from typing import Dict, Any, List
 
 class KrokBotAgent:
-    def __init__(self, model: str = "llama3.1:latest", bridge_url: str = "http://localhost:8990", scheduler_manager=None):
+    def __init__(self, model: str = "qwen2.5-coder:1.5b", bridge_url: str = "http://localhost:8990", scheduler_manager=None):
         self.client = OllamaClient(model=model)
         self.tools = ToolRegistry(bridge_url=bridge_url, scheduler_manager=scheduler_manager)
         self.history: List[Dict[str, str]] = []
