@@ -19,9 +19,9 @@ def main():
     bridge_thread = threading.Thread(target=start_server, args=(bridge_app, 8990), daemon=True)
     bridge_thread.start()
 
-    # 2. Start Web Dashboard in background thread (port 8080)
-    print("[2/4] Starting Web Dashboard on http://localhost:8080 ...")
-    dash_thread = threading.Thread(target=start_server, args=(dashboard_app, 8080), daemon=True)
+    # 2. Start Web Dashboard in background thread (port 5150)
+    print("[2/4] Starting Web Dashboard on http://localhost:5150 ...")
+    dash_thread = threading.Thread(target=start_server, args=(dashboard_app, 5150), daemon=True)
     dash_thread.start()
 
     time.sleep(1.5)
@@ -39,7 +39,7 @@ def main():
 
     print("\n" + "=" * 60)
     print("  KrokBot Diagnostic Complete!")
-    print(f"  - Web Dashboard: http://localhost:8080")
+    print(f"  - Web Dashboard: http://localhost:5150")
     print(f"  - Report File:   {output_path}")
     print("  Server is active. Press Ctrl+C to stop.")
     print("=" * 60)

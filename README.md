@@ -7,7 +7,7 @@ KrokBot is a single-agent proof-of-concept inspired by GrokBot. It utilizes a **
 * **Host API Bridge (`http://localhost:8990`)**: FastAPI daemon providing secure access to host OS metrics, storage partitions, and running processes.
 * **MarinaBox Compute Sandbox**: Isolated script execution sandbox for dynamic diagnostic code prototyping.
 * **Local Ollama Integration (`http://localhost:11434`)**: Completely offline reasoning loop.
-* **Web Dashboard (`http://localhost:8080`)**: Live dark-mode Web UI dashboard.
+* **Web Dashboard (`http://localhost:5150`)**: Live dark-mode Web UI dashboard.
 * **Health Report**: Automatic markdown export (`krokbot_health_report.md`).
 
 ## Quickstart & Virtual Environment Setup
