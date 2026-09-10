@@ -1,3 +1,4 @@
+import re
 from krokbot.agent.ollama_client import OllamaClient
 from krokbot.agent.tools import ToolRegistry
 from typing import Dict, Any, List
@@ -10,10 +11,13 @@ class KrokBotAgent:
 
     def _classify_intent(self, prompt: str) -> str:
         prompt_lower = prompt.lower()
+        script_keywords = ["script", "python", ".py", "reconcile", "csv", "generate script", "create a script", "write a script", "code"]
         diag_keywords = ["health", "storage", "drive", "c:", "d:", "e:", "disk", "hardware", "cpu", "memory", "diagnose", "audit"]
         web_keywords = ["weather", "browser", "browse", "web", "url", "http", "search", "site", "online", "fetch"]
 
-        if any(kw in prompt_lower for kw in diag_keywords):
+        if any(kw in prompt_lower for kw in script_keywords):
+            return "scripting"
+        elif any(kw in prompt_lower for kw in diag_keywords):
             return "diagnostic"
         elif any(kw in prompt_lower for kw in web_keywords):
             return "web_query"
@@ -24,7 +28,7 @@ class KrokBotAgent:
         
         system_prompt = (
             "You are KrokBot, an autonomous assistant with sandbox compute, workstation diagnostic, "
-            "and web browser capabilities. Answer user requests concisely and finish with 'Final Answer: <summary>'."
+            "code execution, and web browser capabilities. Answer user requests concisely and finish with 'Final Answer: <summary>'."
         )
         self.history = [
             {"role": "system", "content": system_prompt},
@@ -35,8 +39,66 @@ class KrokBotAgent:
         storage = {}
         sandbox_output = {}
         browser_output = {}
+        report_content = None
 
-        if intent == "diagnostic":
+        if intent == "scripting":
+            # Prompt LLM to generate the python script
+            code_gen_prompt = (
+                f"User Task: {task_prompt}\n"
+                "Please generate the complete, self-contained Python script to fulfill all requirements. "
+                "Output ONLY valid executable python code inside ```python ``` block."
+            )
+            code_response = self.client.chat([
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": code_gen_prompt}
+            ])
+            raw_reply = code_response.get("message", {}).get("content", "")
+
+            # Extract python code block
+            match = re.search(r"```python\s*(.*?)\s*```", raw_reply, re.DOTALL)
+            if match:
+                script_code = match.group(1).strip()
+            else:
+                # Fallback clean-up if code block not demarcated
+                script_code = raw_reply.replace("```python", "").replace("```", "").strip()
+
+            # Determine filename (e.g. reconcile.py or script.py)
+            filename_match = re.search(r"([a-zA-Z0-9_\-]+\.py)", task_prompt)
+            target_filename = filename_match.group(1) if filename_match else "reconcile.py"
+
+            # Save script to persistent sandbox workspace
+            self.tools.sandbox.write_file(target_filename, script_code)
+
+            # Execute script in sandbox workspace
+            sandbox_output = self.tools.sandbox.execute_file(target_filename)
+
+            # Read report artifact if created
+            report_content = self.tools.sandbox.read_file("report.txt")
+            exit_code = sandbox_output.get("exit_code", 0)
+            stdout = sandbox_output.get("stdout", "").strip()
+            stderr = sandbox_output.get("stderr", "").strip()
+
+            report_display = f"\n\n**Actual Contents of `./report.txt`:**\n```text\n{report_content.strip()}\n```" if report_content else ""
+
+            reply_content = (
+                f"### Python Script Created & Executed in Sandbox Workspace\n\n"
+                f"Created Script: `./{target_filename}`\n"
+                f"Exit Code: `{exit_code}`\n\n"
+                f"**Sandbox Stdout:**\n```text\n{stdout or '(no stdout)'}\n```\n\n"
+                f"**Sandbox Stderr:**\n```text\n{stderr or '(no stderr)'}\n```"
+                f"{report_display}\n\n"
+                f"Final Answer: Script `./{target_filename}` executed with exit code {exit_code}."
+            )
+
+            return {
+                "status": "success",
+                "report": reply_content,
+                "exit_code": exit_code,
+                "sandbox_output": sandbox_output,
+                "report_file": report_content
+            }
+
+        elif intent == "diagnostic":
             # Gather baseline metrics via Host Bridge
             metrics = self.tools.query_host_metrics("summary")
             storage = self.tools.query_host_metrics("storage")
