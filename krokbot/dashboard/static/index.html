@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KrokBot Workstation Dashboard</title>
+    <title>KrokBot Workstation Dashboard & Terminal</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="dashboard-header">
         <h1>KrokBot Workstation Health Dashboard</h1>
-        <p>Autonomous AI Agent Diagnostics, Compute Sandbox & Cron Scheduler</p>
+        <p>Autonomous AI Agent Diagnostics, Compute Sandbox, Cron Scheduler & Command Terminal</p>
     </div>
 
     <div class="card-grid">
@@ -27,6 +27,22 @@
         </div>
     </div>
 
+    <!-- Interactive Chat Terminal Card -->
+    <div class="card" style="margin-bottom: 2rem;">
+        <h2>Interactive Agent Terminal & Chat</h2>
+        <div id="chat-window" class="chat-window">
+            <div class="chat-msg system-msg">
+                <span class="prompt-tag system-tag">krokbot&gt;</span> Ready for task prompts and diagnostic instructions. Type your request below.
+            </div>
+        </div>
+        
+        <form id="chat-form" class="chat-form-container" onsubmit="handleChatSubmit(event)">
+            <span class="prompt-symbol">&gt;</span>
+            <input type="text" id="chat-input" class="chat-input" placeholder="Type a prompt for KrokBot (e.g. 'Check storage and schedule daily audit at 02:00')..." autocomplete="off" required />
+            <button type="submit" id="chat-send-btn" class="btn-send">Send Prompt</button>
+        </form>
+    </div>
+
     <div class="card" style="margin-bottom: 2rem;">
         <h2>Scheduled Cron Tasks</h2>
         <div id="schedules-list" class="schedules-container">
@@ -36,7 +52,7 @@
 
     <h2>Agent Activity Log</h2>
     <div id="log-box" class="log-box">
-        [SYSTEM] Dashboard loaded on Port 5150. Connected to KrokBot Host Bridge & Cron Scheduler.
+        [SYSTEM] Dashboard loaded on Port 5150. Connected to KrokBot Host Bridge, Cron Scheduler & Chat Endpoint.
     </div>
 
     <script>
@@ -85,6 +101,68 @@
             if (confirm("Remove schedule " + id + "?")) {
                 await fetch('/api/schedules/' + id, { method: 'DELETE' });
                 fetchSchedules();
+            }
+        }
+
+        function appendChatMessage(sender, text, sandboxOutput) {
+            const chatWindow = document.getElementById('chat-window');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-msg ' + sender + '-msg';
+
+            if (sender === 'user') {
+                msgDiv.innerHTML = `<span class="prompt-tag user-tag">user&gt;</span> ${escapeHtml(text)}`;
+            } else if (sender === 'krokbot') {
+                let codeHtml = '';
+                if (sandboxOutput && sandboxOutput.stdout) {
+                    codeHtml = `<pre class="sandbox-code-block"><code>[MARINABOX SANDBOX STDOUT]:\n${escapeHtml(sandboxOutput.stdout)}</code></pre>`;
+                }
+                msgDiv.innerHTML = `<span class="prompt-tag krokbot-tag">krokbot&gt;</span> ${escapeHtml(text)} ${codeHtml}`;
+            } else {
+                msgDiv.innerHTML = `<span class="prompt-tag system-tag">system&gt;</span> ${escapeHtml(text)}`;
+            }
+
+            chatWindow.appendChild(msgDiv);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        async function handleChatSubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const sendBtn = document.getElementById('chat-send-btn');
+            const prompt = input.value.trim();
+            if (!prompt) return;
+
+            appendChatMessage('user', prompt);
+            input.value = '';
+            input.disabled = true;
+            sendBtn.disabled = true;
+            sendBtn.innerText = 'Executing...';
+            document.getElementById('agent-status').innerText = 'Executing...';
+            document.getElementById('agent-status').style.color = '#f59e0b';
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+                const data = await res.json();
+                appendChatMessage('krokbot', data.reply, data.sandbox_output);
+                fetchSchedules();
+            } catch (err) {
+                appendChatMessage('system', 'Error communicating with KrokBot agent server: ' + err);
+            } finally {
+                input.disabled = false;
+                sendBtn.disabled = false;
+                sendBtn.innerText = 'Send Prompt';
+                document.getElementById('agent-status').innerText = 'Active';
+                document.getElementById('agent-status').style.color = '#4ade80';
+                input.focus();
             }
         }
 

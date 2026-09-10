@@ -4,6 +4,8 @@
     --accent: #38bdf8;
     --text-main: #f8fafc;
     --text-muted: #94a3b8;
+    --user-green: #4ade80;
+    --krokbot-cyan: #38bdf8;
 }
 
 body {
@@ -50,6 +52,98 @@ body {
     max-height: 300px;
     overflow-y: auto;
     border: 1px solid #334155;
+}
+
+/* Chat Terminal Styling */
+.chat-window {
+    background: #090d16;
+    border-radius: 8px;
+    padding: 1rem;
+    height: 320px;
+    overflow-y: auto;
+    border: 1px solid #334155;
+    font-family: 'Consolas', 'Courier New', monospace;
+    margin-bottom: 1rem;
+}
+
+.chat-msg {
+    margin-bottom: 0.85rem;
+    line-height: 1.5;
+    font-size: 0.95rem;
+}
+
+.prompt-tag {
+    font-weight: bold;
+    margin-right: 6px;
+}
+
+.user-tag {
+    color: var(--user-green);
+}
+
+.krokbot-tag {
+    color: var(--krokbot-cyan);
+}
+
+.system-tag {
+    color: #f59e0b;
+}
+
+.sandbox-code-block {
+    background: #111827;
+    border-left: 3px solid var(--accent);
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    margin-top: 0.5rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    color: #e5e7eb;
+}
+
+.chat-form-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: #090d16;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    border: 1px solid #334155;
+}
+
+.prompt-symbol {
+    color: var(--user-green);
+    font-weight: bold;
+    font-family: monospace;
+    font-size: 1.2rem;
+}
+
+.chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-main);
+    font-size: 1rem;
+    font-family: inherit;
+}
+
+.btn-send {
+    background: #0284c7;
+    color: #fff;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-send:hover {
+    background: #0369a1;
+}
+
+.btn-send:disabled {
+    background: #475569;
+    cursor: not-allowed;
 }
 
 .schedule-ul {
