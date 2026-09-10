@@ -29,15 +29,16 @@ def get_storage_info():
 
 def get_services_list(limit: int = 15):
     services = []
-    for proc in psutil.process_iter(['pid', 'name', 'status', 'memory_percent']):
+    pids = psutil.pids()[:limit * 3]
+    for pid in pids:
         try:
-            info = proc.info
+            proc = psutil.Process(pid)
             services.append({
-                "pid": info['pid'],
-                "name": info['name'] or 'unknown',
-                "status": info['status'] or 'running',
+                "pid": pid,
+                "name": proc.name() or 'unknown',
+                "status": proc.status() or 'running',
                 "cpu_percent": 0.0,
-                "memory_percent": round(info['memory_percent'] or 0.0, 2)
+                "memory_percent": round(proc.memory_percent() or 0.0, 2)
             })
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
