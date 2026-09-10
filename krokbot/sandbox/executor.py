@@ -32,10 +32,10 @@ class SandboxExecutor:
         if not filepath.exists():
             return {"exit_code": 1, "stdout": "", "stderr": f"File not found: {filename}"}
         
-        print("\n" + "─" * 50)
+        print("\n" + "-" * 50)
         print(f" [MARINABOX COMPUTE SANDBOX] Executing Script File: {filename}")
         print(" Workspace Directory: " + str(self.workspace_dir.resolve()))
-        print("─" * 50)
+        print("-" * 50)
 
         try:
             process = subprocess.run(
@@ -50,7 +50,7 @@ class SandboxExecutor:
                 print(f" [SANDBOX STDOUT]:\n{process.stdout.strip()}")
             if process.stderr.strip():
                 print(f" [SANDBOX STDERR]:\n{process.stderr.strip()}")
-            print("─" * 50 + "\n")
+            print("-" * 50 + "\n")
             return {
                 "exit_code": process.returncode,
                 "stdout": process.stdout,
@@ -58,7 +58,7 @@ class SandboxExecutor:
             }
         except subprocess.TimeoutExpired:
             print(f" [SANDBOX EXECUTION TIMED OUT after {self.timeout_seconds}s]")
-            print("─" * 50 + "\n")
+            print("-" * 50 + "\n")
             return {
                 "exit_code": 124,
                 "stdout": "",
