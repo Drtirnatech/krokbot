@@ -11,16 +11,16 @@ class KrokBotAgent:
 
     def _classify_intent(self, prompt: str) -> str:
         prompt_lower = prompt.lower()
+        web_keywords = ["weather", "browser", "browse", "web", "url", "http", "https", "search", "site", "online", "fetch", "forecast"]
         script_keywords = ["script", "python", ".py", "reconcile", "csv", "generate script", "create a script", "write a script", "code"]
-        diag_keywords = ["health", "storage", "drive", "c:", "d:", "e:", "disk", "hardware", "cpu", "memory", "diagnose", "audit"]
-        web_keywords = ["weather", "browser", "browse", "web", "url", "http", "search", "site", "online", "fetch"]
+        diag_keywords = ["health", "storage", "drive", "c:", "d:", "e:", "disk", "hardware", "cpu", "memory", "diagnose", "audit", "system", "status"]
 
-        if any(kw in prompt_lower for kw in script_keywords):
-            return "scripting"
-        elif any(kw in prompt_lower for kw in diag_keywords):
-            return "diagnostic"
-        elif any(kw in prompt_lower for kw in web_keywords):
+        if any(kw in prompt_lower for kw in web_keywords) or "http://" in prompt_lower or "https://" in prompt_lower:
             return "web_query"
+        elif any(kw in prompt_lower for kw in script_keywords):
+            return "scripting"
+        elif any(kw in prompt_lower for kw in diag_keywords) or "test" in prompt_lower or "check" in prompt_lower:
+            return "diagnostic"
         return "general"
 
     def run_task(self, task_prompt: str) -> Dict[str, Any]:
@@ -45,7 +45,11 @@ class KrokBotAgent:
             # Prompt LLM to generate the python script
             code_gen_prompt = (
                 f"User Task: {task_prompt}\n"
-                "Please generate the complete, self-contained Python script to fulfill all requirements. "
+                "Please generate a complete, self-contained Python script to fulfill all requirements.\n"
+                "CRITICAL RULES:\n"
+                "1. Do NOT use infinite loops (`while True`). Perform a finite run (e.g. 1 to 3 iterations) so the script exits immediately.\n"
+                "2. Ensure robust fallbacks/simulations for hardware calls (e.g. psutil sensors) that may not exist in container environments.\n"
+                "3. If asked to write a report summary, write directly to report.txt and print a clear summary to stdout.\n"
                 "Output ONLY valid executable python code inside ```python ``` block."
             )
             code_response = self.client.chat([
@@ -68,6 +72,15 @@ class KrokBotAgent:
 
             # Save script to persistent sandbox workspace
             self.tools.sandbox.write_file(target_filename, script_code)
+
+            # Remove stale report.txt before execution
+            import os
+            report_path = self.tools.sandbox._resolve_path("report.txt")
+            if os.path.exists(report_path):
+                try:
+                    os.remove(report_path)
+                except Exception:
+                    pass
 
             # Execute script in sandbox workspace
             sandbox_output = self.tools.sandbox.execute_file(target_filename)
