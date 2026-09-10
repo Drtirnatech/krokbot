@@ -136,17 +136,27 @@ class KrokBotAgent:
         elif intent == "web_query":
             # Execute browser capability action
             browser_output = self.tools.run_browser_action("wait", duration=0.1)
-            # If weather query, also fetch via python sandbox script if needed
-            if "weather" in task_prompt.lower():
-                weather_script = (
-                    "import urllib.request, json\n"
+            
+            # Extract target URL if specified in user prompt
+            url_match = re.search(r"(https?://[^\s'\"]+)", task_prompt)
+            target_url = url_match.group(1) if url_match else ("https://wttr.in/?format=3" if "weather" in task_prompt.lower() else "")
+
+            if target_url:
+                web_fetch_script = (
+                    "import sys, urllib.request, re\n"
+                    "if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')\n"
                     "try:\n"
-                    "    res = urllib.request.urlopen('https://wttr.in/?format=3').read().decode('utf-8')\n"
-                    "    print(f'[SANDBOX WEATHER FETCH] {res.strip()}')\n"
+                    f"    req = urllib.request.Request('{target_url}', headers={{'User-Agent': 'Mozilla/5.0'}})\n"
+                    "    html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')\n"
+                    "    text = re.sub(r'<script.*?>.*?</script>', '', html, flags=re.DOTALL)\n"
+                    "    text = re.sub(r'<style.*?>.*?</style>', '', text, flags=re.DOTALL)\n"
+                    "    text = re.sub(r'<[^>]+>', ' ', text)\n"
+                    "    clean_text = ' '.join(text.split())[:1500]\n"
+                    "    print(f'[SANDBOX WEB FETCH] {clean_text}')\n"
                     "except Exception as e:\n"
-                    "    print(f'[SANDBOX WEATHER FETCH ERROR] {e}')\n"
+                    "    print(f'[SANDBOX WEB FETCH ERROR] {e}')\n"
                 )
-                sandbox_output = self.tools.run_sandbox_script(weather_script)
+                sandbox_output = self.tools.run_sandbox_script(web_fetch_script)
 
             context_update = (
                 f"Browser Action Output: {browser_output}\n"

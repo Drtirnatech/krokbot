@@ -48,12 +48,18 @@ class SandboxExecutor:
         print(" Workspace Directory: " + str(self.workspace_dir.resolve()))
         print("-" * 50)
 
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+
         try:
             process = subprocess.run(
                 [sys.executable, str(filepath.resolve())],
                 cwd=str(self.workspace_dir.resolve()),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
                 timeout=self.timeout_seconds
             )
             print(f" [SANDBOX EXECUTION COMPLETE] Exit Code: {process.returncode}")
