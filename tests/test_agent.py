@@ -35,3 +35,10 @@ def test_agent_react_loop(mock_metrics, mock_chat):
     agent = KrokBotAgent(model="llama3.2")
     result = agent.run_task("Check system health")
     assert "Workstation health check complete" in result["report"]
+
+def test_tool_registry_browser_action():
+    registry = ToolRegistry()
+    res = registry.run_browser_action("wait", duration=0.1)
+    assert res["status"] == "success"
+    assert "waited" in res["output"]
+
