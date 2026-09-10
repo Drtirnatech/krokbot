@@ -41,7 +41,14 @@ def main():
     print("  KrokBot Diagnostic Complete!")
     print(f"  - Web Dashboard: http://localhost:8080")
     print(f"  - Report File:   {output_path}")
+    print("  Server is active. Press Ctrl+C to stop.")
     print("=" * 60)
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nStopping KrokBot servers...")
 
 if __name__ == "__main__":
     main()
