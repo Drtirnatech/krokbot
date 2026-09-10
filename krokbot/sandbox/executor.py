@@ -15,31 +15,42 @@ class SandboxExecutor:
         self.workspace_dir = Path(workspace_dir) if workspace_dir else Path("data/sandbox_workspace")
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
 
+    def _resolve_path(self, filename: str) -> Path:
+        path_obj = Path(filename)
+        try:
+            resolved_workspace = self.workspace_dir.resolve()
+            resolved_path = path_obj.resolve()
+            if resolved_path.is_relative_to(resolved_workspace):
+                return resolved_path
+        except Exception:
+            pass
+        return self.workspace_dir / path_obj.name
+
     def write_file(self, filename: str, content: str) -> str:
-        filepath = self.workspace_dir / filename
+        filepath = self._resolve_path(filename)
         filepath.parent.mkdir(parents=True, exist_ok=True)
         filepath.write_text(content, encoding="utf-8")
         return str(filepath)
 
     def read_file(self, filename: str) -> Optional[str]:
-        filepath = self.workspace_dir / filename
+        filepath = self._resolve_path(filename)
         if filepath.exists():
             return filepath.read_text(encoding="utf-8")
         return None
 
     def execute_file(self, filename: str) -> Dict[str, Any]:
-        filepath = self.workspace_dir / filename
+        filepath = self._resolve_path(filename)
         if not filepath.exists():
             return {"exit_code": 1, "stdout": "", "stderr": f"File not found: {filename}"}
         
         print("\n" + "-" * 50)
-        print(f" [MARINABOX COMPUTE SANDBOX] Executing Script File: {filename}")
+        print(f" [MARINABOX COMPUTE SANDBOX] Executing Script File: {filepath.name}")
         print(" Workspace Directory: " + str(self.workspace_dir.resolve()))
         print("-" * 50)
 
         try:
             process = subprocess.run(
-                [sys.executable, str(filepath)],
+                [sys.executable, str(filepath.resolve())],
                 cwd=str(self.workspace_dir.resolve()),
                 capture_output=True,
                 text=True,
