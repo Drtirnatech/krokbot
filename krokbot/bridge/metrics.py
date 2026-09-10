@@ -12,8 +12,10 @@ def get_system_summary():
 
 def get_storage_info():
     partitions = []
-    for part in psutil.disk_partitions(all=False):
+    for part in psutil.disk_partitions(all=True):
         try:
+            if not part.mountpoint:
+                continue
             usage = psutil.disk_usage(part.mountpoint)
             partitions.append({
                 "device": part.device,
@@ -23,7 +25,7 @@ def get_storage_info():
                 "free_gb": round(usage.free / (1024**3), 2),
                 "percent_used": usage.percent
             })
-        except PermissionError:
+        except (PermissionError, OSError):
             continue
     return partitions
 
