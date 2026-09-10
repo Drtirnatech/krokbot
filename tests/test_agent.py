@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from krokbot.agent.tools import ToolRegistry
 from krokbot.agent.core import KrokBotAgent
+from krokbot.scheduler.manager import CronSchedulerManager
 
 @patch("httpx.Client.get")
 def test_tool_registry(mock_get):
@@ -12,6 +13,15 @@ def test_tool_registry(mock_get):
     registry = ToolRegistry()
     summary = registry.query_host_metrics("summary")
     assert summary["cpu_percent"] == 12.5
+
+def test_schedule_cron_task_tool(tmp_path):
+    json_path = tmp_path / "schedules.json"
+    scheduler = CronSchedulerManager(storage_path=str(json_path))
+    registry = ToolRegistry(scheduler_manager=scheduler)
+    
+    result = registry.schedule_cron_task("Daily Audit", "0 0 * * *", "Perform daily system check")
+    assert result["status"] == "success"
+    assert result["schedule"]["name"] == "Daily Audit"
 
 @patch("krokbot.agent.ollama_client.OllamaClient.chat")
 @patch("krokbot.agent.tools.ToolRegistry.query_host_metrics")

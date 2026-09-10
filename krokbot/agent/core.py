@@ -3,9 +3,9 @@ from krokbot.agent.tools import ToolRegistry
 from typing import Dict, Any, List
 
 class KrokBotAgent:
-    def __init__(self, model: str = "llama3.2", bridge_url: str = "http://localhost:8990"):
+    def __init__(self, model: str = "llama3.2", bridge_url: str = "http://localhost:8990", scheduler_manager=None):
         self.client = OllamaClient(model=model)
-        self.tools = ToolRegistry(bridge_url=bridge_url)
+        self.tools = ToolRegistry(bridge_url=bridge_url, scheduler_manager=scheduler_manager)
         self.history: List[Dict[str, str]] = []
 
     def run_task(self, task_prompt: str) -> Dict[str, Any]:
