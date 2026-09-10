@@ -23,8 +23,20 @@ class KrokBotAgent:
         metrics = self.tools.query_host_metrics("summary")
         storage = self.tools.query_host_metrics("storage")
 
+        # Dynamically execute Python diagnostic script in MarinaBox compute sandbox
+        sandbox_code = (
+            "import os, platform, psutil\n"
+            "print('[SANDBOX DIAGNOSTIC] Inspecting Virtual Compute & OS Environment')\n"
+            "print(f'Host Platform: {platform.system()} {platform.release()}')\n"
+            "print(f'CPU Cores: {os.cpu_count()}')\n"
+            "print(f'Memory Total (GB): {round(psutil.virtual_memory().total / (1024**3), 2)}')\n"
+            "print('[SANDBOX DIAGNOSTIC] Complete.')"
+        )
+        sandbox_output = self.tools.run_sandbox_script(sandbox_code)
+
         context_update = (
             f"Baseline System Metrics:\nSummary: {metrics}\nStorage: {storage}\n"
+            f"MarinaBox Sandbox Diagnostic Output: {sandbox_output}\n"
             "Please analyze these metrics and generate the final diagnostic health report."
         )
         self.history.append({"role": "user", "content": context_update})
@@ -36,5 +48,6 @@ class KrokBotAgent:
             "status": "success",
             "report": reply_content,
             "metrics": metrics,
-            "storage": storage
+            "storage": storage,
+            "sandbox_output": sandbox_output
         }
