@@ -11,7 +11,7 @@ import urllib.request
 import json
 
 REQUIRED_PACKAGES = ["fastapi", "uvicorn", "psutil", "httpx", "ollama", "pydantic"]
-OLLAMA_URL = "http://localhost:11434"
+OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
 def print_banner():
     print("=" * 60)
@@ -19,7 +19,18 @@ def print_banner():
     print("=" * 60)
 
 def check_and_setup_venv():
-    """Ensure .venv exists and active dependencies are installed."""
+    """Ensure .venv exists and active dependencies are installed (for local dev)."""
+    missing = []
+    for pkg in REQUIRED_PACKAGES:
+        try:
+            __import__(pkg)
+        except ImportError:
+            missing.append(pkg)
+            
+    if not missing or os.path.exists("/.dockerenv"):
+        print("[1/3] Global environment & dependencies active.")
+        return
+
     venv_dir = os.path.join(os.getcwd(), ".venv")
     
     # Determine platform python executable inside .venv
