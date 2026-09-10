@@ -10,12 +10,35 @@ KrokBot is a single-agent proof-of-concept inspired by GrokBot. It utilizes a **
 * **Web Dashboard (`http://localhost:8080`)**: Live dark-mode Web UI dashboard.
 * **Health Report**: Automatic markdown export (`krokbot_health_report.md`).
 
-## Quickstart
+## Quickstart & Virtual Environment Setup
 
-1. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+### Option A: Using Setup Script (Automated)
+
+* **PowerShell**:
+  ```powershell
+  .\setup_venv.ps1
+  ```
+* **Windows CMD**:
+  ```cmd
+  setup_venv.bat
+  ```
+* **Linux / macOS / Git Bash**:
+  ```bash
+  chmod +x setup_venv.sh && ./setup_venv.sh
+  ```
+
+### Option B: Manual Setup
+
+1. Create & activate virtual environment:
+   ```bash
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1  # Windows PowerShell
+   ```
+
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 2. Make sure Ollama is running locally:
 ```bash
