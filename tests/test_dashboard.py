@@ -10,6 +10,11 @@ def test_dashboard_index_route():
     assert response.status_code == 200
     assert "KrokBot Workstation Dashboard" in response.text
 
+def test_schedules_api_endpoints():
+    response = client.get("/api/schedules")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
 def test_export_health_report(tmp_path):
     report_file = tmp_path / "test_report.md"
     metrics = {"cpu_percent": 20.0, "memory_percent": 50.0, "os_info": "Windows 11"}

@@ -1,11 +1,17 @@
 import os
 import datetime
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 app = FastAPI(title="KrokBot Web Dashboard", version="1.0.0")
+
+scheduler_manager_ref: Optional[Any] = None
+
+def set_scheduler_manager(manager):
+    global scheduler_manager_ref
+    scheduler_manager_ref = manager
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
@@ -25,6 +31,29 @@ def get_metrics():
         "cpu_percent": psutil.cpu_percent(interval=0.1),
         "memory_percent": psutil.virtual_memory().percent
     }
+
+@app.get("/api/schedules")
+def get_schedules():
+    if scheduler_manager_ref:
+        return scheduler_manager_ref.get_all_schedules()
+    return []
+
+@app.post("/api/schedules")
+def create_schedule(payload: Dict[str, Any]):
+    if not scheduler_manager_ref:
+        raise HTTPException(status_code=500, detail="Scheduler manager not initialized")
+    name = payload.get("name", "Scheduled Health Task")
+    cron_expr = payload.get("cron_expression", "0 * * * *")
+    prompt = payload.get("prompt", "Check system health")
+    item = scheduler_manager_ref.add_schedule(name, cron_expr, prompt)
+    return item
+
+@app.delete("/api/schedules/{schedule_id}")
+def delete_schedule(schedule_id: str):
+    if not scheduler_manager_ref:
+        raise HTTPException(status_code=500, detail="Scheduler manager not initialized")
+    success = scheduler_manager_ref.remove_schedule(schedule_id)
+    return {"status": "success" if success else "error"}
 
 def export_health_report(filepath: str, report_content: str, metrics: Dict[str, Any]) -> None:
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")

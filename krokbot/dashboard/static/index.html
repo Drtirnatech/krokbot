@@ -9,7 +9,7 @@
 <body>
     <div class="dashboard-header">
         <h1>KrokBot Workstation Health Dashboard</h1>
-        <p>Autonomous AI Agent Diagnostics & Compute Sandbox</p>
+        <p>Autonomous AI Agent Diagnostics, Compute Sandbox & Cron Scheduler</p>
     </div>
 
     <div class="card-grid">
@@ -27,9 +27,16 @@
         </div>
     </div>
 
+    <div class="card" style="margin-bottom: 2rem;">
+        <h2>Scheduled Cron Tasks</h2>
+        <div id="schedules-list" class="schedules-container">
+            <p style="color: var(--text-muted);">Loading active schedules...</p>
+        </div>
+    </div>
+
     <h2>Agent Activity Log</h2>
     <div id="log-box" class="log-box">
-        [SYSTEM] Dashboard loaded. Connected to KrokBot Host Bridge.
+        [SYSTEM] Dashboard loaded on Port 5150. Connected to KrokBot Host Bridge & Cron Scheduler.
     </div>
 
     <script>
@@ -45,8 +52,46 @@
                 console.error("Metrics fetch error", e);
             }
         }
+
+        async function fetchSchedules() {
+            try {
+                const res = await fetch('/api/schedules');
+                const schedules = await res.json();
+                const container = document.getElementById('schedules-list');
+                if (schedules.length === 0) {
+                    container.innerHTML = '<p style="color: var(--text-muted);">No persistent cron schedules configured.</p>';
+                    return;
+                }
+                let html = '<ul class="schedule-ul">';
+                schedules.forEach(item => {
+                    html += `
+                        <li class="schedule-item">
+                            <div>
+                                <strong>${item.name}</strong> <code class="cron-badge">${item.cron_expression}</code><br/>
+                                <small style="color: var(--text-muted);">${item.prompt}</small>
+                            </div>
+                            <button onclick="deleteSchedule('${item.id}')" class="btn-delete">Remove</button>
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                container.innerHTML = html;
+            } catch (e) {
+                console.error("Schedules fetch error", e);
+            }
+        }
+
+        async function deleteSchedule(id) {
+            if (confirm("Remove schedule " + id + "?")) {
+                await fetch('/api/schedules/' + id, { method: 'DELETE' });
+                fetchSchedules();
+            }
+        }
+
         setInterval(fetchMetrics, 3000);
+        setInterval(fetchSchedules, 5000);
         fetchMetrics();
+        fetchSchedules();
     </script>
 </body>
 </html>
