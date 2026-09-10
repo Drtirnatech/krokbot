@@ -1,0 +1,27 @@
+import pytest
+from unittest.mock import patch, MagicMock
+from krokbot.agent.tools import ToolRegistry
+from krokbot.agent.core import KrokBotAgent
+
+@patch("httpx.Client.get")
+def test_tool_registry(mock_get):
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {"cpu_percent": 12.5, "memory_percent": 40.0}
+    mock_get.return_value = mock_resp
+
+    registry = ToolRegistry()
+    summary = registry.query_host_metrics("summary")
+    assert summary["cpu_percent"] == 12.5
+
+@patch("krokbot.agent.ollama_client.OllamaClient.chat")
+@patch("krokbot.agent.tools.ToolRegistry.query_host_metrics")
+def test_agent_react_loop(mock_metrics, mock_chat):
+    mock_metrics.return_value = {"cpu_percent": 15.0}
+    mock_chat.return_value = {
+        "message": {
+            "content": "Final Answer: Workstation health check complete. Storage and CPU levels are normal."
+        }
+    }
+    agent = KrokBotAgent(model="llama3.2")
+    result = agent.run_task("Check system health")
+    assert "Workstation health check complete" in result["report"]
