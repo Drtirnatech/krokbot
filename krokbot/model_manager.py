@@ -314,6 +314,15 @@ def _restart_local_llama_server(model_path: str, port: int = 8081, n_ctx: int = 
         except Exception:
             pass
 
+    # Free heap and trim unfragmented memory back to the kernel
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
     # 2. Ensure port is fully released
     for _ in range(15):
         try:

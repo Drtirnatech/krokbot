@@ -60,13 +60,28 @@ def get_container_resource_metrics() -> Dict[str, Any]:
             pass
 
     # Read cgroup v2 memory if available for exact container-level accounting
+    # Use Kubernetes / cAdvisor Working Set standard: working_set = memory.current - inactive_file
+    # This prevents unmapped file page-cache (e.g. from previously loaded GGUF models) from artificially inflating memory usage.
     cgroup_mem_file = "/sys/fs/cgroup/memory.current"
+    cgroup_stat_file = "/sys/fs/cgroup/memory.stat"
     if os.path.exists(cgroup_mem_file):
         try:
             with open(cgroup_mem_file, "r") as f:
                 cgroup_bytes = int(f.read().strip())
                 if cgroup_bytes > 0:
-                    total_rss_bytes = cgroup_bytes
+                    inactive_file_bytes = 0
+                    if os.path.exists(cgroup_stat_file):
+                        try:
+                            with open(cgroup_stat_file, "r") as sf:
+                                for line in sf:
+                                    if line.startswith("inactive_file"):
+                                        inactive_file_bytes = int(line.split()[1])
+                                        break
+                        except Exception:
+                            pass
+                    # Deduct inactive file cache to get true container working set
+                    working_set_bytes = max(0, cgroup_bytes - inactive_file_bytes)
+                    total_rss_bytes = working_set_bytes if working_set_bytes > 0 else cgroup_bytes
         except Exception:
             pass
 

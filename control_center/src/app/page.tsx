@@ -424,6 +424,9 @@ export default function ControlCenterDashboard() {
       setModelModalNode(null);
       await fetchFleet();
       await fetchAuditLogs();
+      // Adaptive rapid follow-up sweeps at +1.2s and +2.8s to capture stabilized working set immediately
+      setTimeout(() => { fetchFleet(); fetchAuditLogs(); }, 1200);
+      setTimeout(() => { fetchFleet(); fetchAuditLogs(); }, 2800);
     } catch (err: any) {
       alert(`Switch Model Error: ${err.message}`);
     } finally {
