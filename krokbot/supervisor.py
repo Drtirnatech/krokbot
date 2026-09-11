@@ -65,21 +65,27 @@ class AgentSupervisor:
         if agent_id in self._agents and self._agents[agent_id].get("status") == "running":
             raise ValueError(f"Agent with ID '{agent_id}' is already running.")
 
-        # Ensure assigned_port is unique and not already used by any registered agent
-        used_ports = {a.get("port") for a in self._agents.values() if a.get("port")}
-        while self._next_port in used_ports:
+        # If re-spawning an existing agent, preserve its assigned port; otherwise allocate a unique port
+        if agent_id in self._agents and self._agents[agent_id].get("port"):
+            assigned_port = self._agents[agent_id]["port"]
+        else:
+            used_ports = {a.get("port") for a in self._agents.values() if a.get("port")}
+            while self._next_port in used_ports:
+                self._next_port += 1
+            assigned_port = self._next_port
             self._next_port += 1
-        assigned_port = self._next_port
-        self._next_port += 1
 
         agent_workspace = os.path.join(self.workspaces_root, f"agent_{agent_id}")
         os.makedirs(agent_workspace, exist_ok=True)
 
+        app_dir = "/app" if os.path.exists("/app/krokbot") else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         env = os.environ.copy()
+        env["PYTHONPATH"] = app_dir + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
         env["KROKBOT_AGENT_ID"] = agent_id
         env["KROKBOT_AGENT_NAME"] = agent_name
         env["KROKBOT_PORT"] = str(assigned_port)
         env["KROKBOT_WORKSPACE"] = agent_workspace
+        env["KROKBOT_IS_PRIMARY"] = "0"
         env["PYTHONUNBUFFERED"] = "1"
 
         # Worker launch command

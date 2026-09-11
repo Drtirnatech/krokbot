@@ -7,7 +7,7 @@ from krokbot.agent.planner import WorkflowPlanner, WorkflowPlan
 from krokbot.scripts.manager import ScriptAssetManager, get_script_manager
 
 class KrokBotAgent:
-    def __init__(self, agent_id: Optional[str] = None, agent_name: Optional[str] = None, model: Optional[str] = None, bridge_url: Optional[str] = None, scheduler_manager=None, tools_manager=None, script_manager=None):
+    def __init__(self, agent_id: Optional[str] = None, agent_name: Optional[str] = None, port: Optional[int] = None, is_primary: Optional[bool] = None, model: Optional[str] = None, bridge_url: Optional[str] = None, scheduler_manager=None, tools_manager=None, script_manager=None):
         from krokbot.model_manager import load_config
         try:
             cfg = load_config()
@@ -17,6 +17,17 @@ class KrokBotAgent:
 
         self.agent_id = agent_id or os.getenv("KROKBOT_AGENT_ID") or cfg_agent.get("id") or "krok-prime-01"
         self.agent_name = agent_name or os.getenv("KROKBOT_AGENT_NAME") or cfg_agent.get("name") or "KrokBot Prime Sentinel"
+
+        if is_primary is not None:
+            self.is_primary = is_primary
+        else:
+            self.is_primary = (self.agent_id == "krok-prime-01" or str(os.getenv("KROKBOT_IS_PRIMARY", "")).lower() in ("1", "true"))
+
+        if port is not None:
+            self.port = port
+        else:
+            port_env = os.getenv("KROKBOT_PORT")
+            self.port = int(port_env) if port_env and port_env.isdigit() else (5150 if self.is_primary else 5152)
 
         default_model = os.getenv("LLM_MODEL", "qwen3-4b")
         resolved_bridge_url = bridge_url or os.getenv("BRIDGE_URL")
@@ -56,6 +67,11 @@ class KrokBotAgent:
         diag_keywords = ["health", "storage", "drive", "c:", "d:", "e:", "disk", "hardware", "cpu", "memory", "diagnose", "audit", "system", "status"]
         if any(kw in prompt_lower for kw in diag_keywords) or "test" in prompt_lower or "check" in prompt_lower:
             return "diagnostic"
+
+        # 5. Identity & Readiness detection
+        id_keywords = ["identify your", "agent role", "assigned port", "readiness", "who are you", "what is your role", "your port"]
+        if any(kw in prompt_lower for kw in id_keywords):
+            return "identity"
 
         return "general"
 
@@ -393,9 +409,14 @@ class KrokBotAgent:
         # 1. Check for sequenced multi-step instructions
         plan = self.planner.plan(task_prompt)
         
+        role_title = "Primary Sentinel" if self.is_primary else "Worker Agent"
         system_prompt = (
-            "You are KrokBot, an autonomous assistant with sandbox compute, workstation diagnostic, "
-            "code execution, and web browser capabilities. Answer user requests concisely and finish with 'Final Answer: <summary>'."
+            f"You are {self.agent_name} (ID: {self.agent_id}), an autonomous {role_title} operating on Assigned Port {self.port} "
+            f"in the KrokBot Edge Operations Cluster. Your role is '{role_title}', your assigned port is {self.port}, and your status is 'Ready and operational'. "
+            f"When queried to identify your agent role, report your assigned port, or state your readiness, you must report: "
+            f"Agent Role: {role_title}\nAssigned Port: {self.port}\nReadiness: Ready and operational.\n"
+            "You have sandbox compute, workstation diagnostic, code execution, and web browser capabilities. "
+            "Answer user requests concisely and finish with 'Final Answer: <summary>'."
         )
 
         if plan.is_sequential:
@@ -418,6 +439,27 @@ class KrokBotAgent:
 
         # 3. Standard single-intent flow
         intent = self._classify_intent(task_prompt)
+
+        if intent == "identity":
+            report_body = (
+                f"Agent Role: {role_title}\n"
+                f"Assigned Port: {self.port}\n"
+                f"Readiness: Ready and operational.\n\n"
+                f"Final Answer: {self.agent_name} ({role_title}) is active and operational on Assigned Port {self.port}."
+            )
+            return {
+                "status": "success",
+                "report": report_body,
+                "clean_report": report_body,
+                "raw_report": report_body,
+                "thinking": "",
+                "show_thinking": show_thinking,
+                "metrics": {"role": role_title, "port": self.port, "status": "Ready"},
+                "storage": {},
+                "sandbox_output": {},
+                "browser_output": {}
+            }
+
         self.history = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": task_prompt}

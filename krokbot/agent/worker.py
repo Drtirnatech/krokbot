@@ -7,7 +7,7 @@ from krokbot.agent.core import KrokBotAgent
 
 def create_worker_app(agent_id: str, agent_name: str, port: int, workspace: str) -> FastAPI:
     app = FastAPI(title=f"KrokBot Worker - {agent_name}", version="1.0.0")
-    agent = KrokBotAgent(agent_id=agent_id, agent_name=agent_name)
+    agent = KrokBotAgent(agent_id=agent_id, agent_name=agent_name, port=port, is_primary=False)
 
     @app.get("/api/agent/info")
     @app.get("/api/health")

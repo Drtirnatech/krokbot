@@ -40,7 +40,7 @@ def main():
 
     # 3. Initialize and run KrokBot Agent
     print("[3/4] Running KrokBot Health Diagnostic Task via Llama.cpp...")
-    agent = KrokBotAgent(scheduler_manager=scheduler)
+    agent = KrokBotAgent(scheduler_manager=scheduler, port=5150, is_primary=True)
     set_agent_instance(agent)
     task_prompt = "Check workstation health, OS, storage, and active services, and output diagnostic summary."
     result = agent.run_task(task_prompt)
