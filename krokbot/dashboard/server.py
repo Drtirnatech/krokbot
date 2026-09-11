@@ -1,8 +1,8 @@
 import os
 import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse, JSONResponse
 import json
 from typing import Dict, Any, Optional
 
@@ -362,6 +362,125 @@ def create_script_endpoint(payload: Dict[str, Any]):
     category = payload.get("category", "General Automation")
     res = mgr.save_script(name=name, code=code, purpose=purpose, markdown_content=markdown, category=category)
     return res
+
+@app.post("/api/scripts/upload")
+@app.post("/api/v1/scripts/upload")
+async def upload_script_endpoint(request: Request):
+    """
+    Upload a Python script and optional requirements.txt.
+    Performs AST syntax validation, requirements check (and optional install),
+    and test execution verification in the sandbox before saving to data/scripts/.
+    """
+    mgr = get_script_manager()
+    from krokbot.sandbox.executor import SandboxExecutor
+    sandbox = SandboxExecutor()
+
+    content_type = request.headers.get("content-type", "")
+
+    filename = ""
+    code = ""
+    requirements_text = None
+    purpose = "Uploaded Python script asset"
+    category = "General Automation"
+    auto_install = True
+    verify_execution = True
+
+    if "application/json" in content_type:
+        payload = await request.json()
+        filename = payload.get("filename") or payload.get("name") or "script.py"
+        code = payload.get("code") or ""
+        requirements_text = payload.get("requirements") or payload.get("requirements_text")
+        purpose = payload.get("purpose") or purpose
+        category = payload.get("category") or category
+        auto_install = payload.get("auto_install", True)
+        verify_execution = payload.get("verify_execution", True)
+    else:
+        form = await request.form()
+        file_obj = form.get("file")
+        if file_obj and hasattr(file_obj, "filename") and hasattr(file_obj, "read"):
+            filename = file_obj.filename
+            raw_bytes = await file_obj.read()
+            code = raw_bytes.decode("utf-8", errors="replace")
+        else:
+            code = form.get("code", "")
+            filename = form.get("filename", "") or form.get("name", "script.py")
+
+        req_obj = form.get("requirements")
+        if req_obj and hasattr(req_obj, "read"):
+            raw_req = await req_obj.read()
+            requirements_text = raw_req.decode("utf-8", errors="replace")
+        elif "requirements_text" in form:
+            requirements_text = str(form.get("requirements_text"))
+        elif "requirements" in form:
+            requirements_text = str(form.get("requirements"))
+
+        if form.get("purpose"):
+            purpose = str(form.get("purpose"))
+        if form.get("category"):
+            category = str(form.get("category"))
+        if "auto_install" in form:
+            auto_install = str(form.get("auto_install")).lower() in ["true", "1", "yes"]
+        if "verify_execution" in form:
+            verify_execution = str(form.get("verify_execution")).lower() in ["true", "1", "yes"]
+
+    if not filename:
+        filename = "script.py"
+    if not filename.endswith(".py"):
+        filename += ".py"
+
+    if not code or not str(code).strip():
+        raise HTTPException(status_code=400, detail="Python script code or file is required")
+
+    # Perform validation and verification
+    verification = mgr.validate_and_verify(
+        filename=filename,
+        code=str(code),
+        requirements_content=requirements_text,
+        auto_install=auto_install,
+        sandbox_executor=sandbox
+    )
+
+    # If syntax is broken, reject
+    if not verification["valid_syntax"]:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "syntax_error",
+                "message": verification["error"],
+                "verification": verification,
+                "name": filename
+            }
+        )
+
+    # If requirements missing, report
+    if not verification["requirements_ok"]:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": "requirements_missing",
+                "message": verification["error"],
+                "verification": verification,
+                "name": filename
+            }
+        )
+
+    # Save the script asset
+    saved = mgr.save_script(
+        name=filename,
+        code=str(code),
+        purpose=purpose,
+        category=category,
+        requirements_content=requirements_text,
+        verification_info=verification
+    )
+
+    return {
+        "status": "verified" if verification["execution_verified"] else "saved_unverified",
+        "name": saved["name"],
+        "filename": saved["filename"],
+        "verification": verification,
+        "script": saved
+    }
 
 @app.delete("/api/scripts/{name}")
 @app.delete("/api/v1/scripts/{name}")

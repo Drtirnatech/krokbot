@@ -39,10 +39,34 @@ class ScriptAssetManager:
         purpose: str,
         code: str,
         category: str = "General Automation",
-        author: str = "krokbot_agent"
+        author: str = "krokbot_agent",
+        requirements_content: Optional[str] = None,
+        verification_info: Optional[Dict[str, Any]] = None
     ) -> str:
         sha256 = self._compute_sha256(code)
         now_iso = datetime.now(timezone.utc).isoformat()
+
+        req_section = ""
+        if requirements_content and requirements_content.strip():
+            req_section = f"""
+## Dependencies & Package Requirements (`requirements.txt`)
+```text
+{requirements_content.strip()}
+```
+"""
+
+        verification_section = ""
+        if verification_info:
+            v_exit = verification_info.get("exit_code", 0)
+            v_badge = "✓ VERIFIED (Exit Code 0)" if v_exit == 0 else f"⚠ FAILED (Exit Code {v_exit})"
+            verification_section = f"""
+## Verification & Validation Status
+- Status: `{v_badge}`
+- Syntax Validation: `{"PASSED" if verification_info.get("valid_syntax", True) else "FAILED"}`
+- Requirements Satisfied: `{"YES" if verification_info.get("requirements_ok", True) else "NO"}`
+- Execution Latency: `{verification_info.get("duration_ms", 0)} ms`
+- Verified At: `{now_iso}`
+"""
         
         return f"""# Script Asset: {name}
 
@@ -52,17 +76,18 @@ class ScriptAssetManager:
 **Created**: `{now_iso}`  
 **Last Modified**: `{now_iso}`  
 **SHA-256**: `{sha256}`  
+{f"**Status**: `✓ VERIFIED`" if verification_info and verification_info.get("exit_code") == 0 else ""}
 
 ---
 
 ## Purpose & Functional Summary
 {purpose.strip()}
-
+{req_section}
 ## Execution Requirements
 - Runtime: Python 3.10+ in container sandbox compute environment
 - Privileges: Sandbox Compute Workspace (`/app/data/sandbox_workspace`)
 - External Network: Permitted if Browser/HTTP tools are enabled
-
+{verification_section}
 ## Inputs & Arguments
 - Self-contained execution script. Does not require command-line arguments.
 
@@ -81,7 +106,8 @@ class ScriptAssetManager:
             "category": "General Automation",
             "author": "krokbot_agent",
             "created_at": None,
-            "sha256": None
+            "sha256": None,
+            "is_verified": False
         }
         if not md_path.exists():
             return meta
@@ -104,6 +130,9 @@ class ScriptAssetManager:
             created_match = re.search(r"\*\*Created\*\*:\s*`?([^`\n\r]+)`?", content)
             if created_match:
                 meta["created_at"] = created_match.group(1).strip()
+
+            if "✓ VERIFIED" in content:
+                meta["is_verified"] = True
 
             purpose_match = re.search(r"## Purpose & Functional Summary\s*\n(.*?)(?=\n##|\Z)", content, re.DOTALL)
             if purpose_match:
@@ -136,6 +165,7 @@ class ScriptAssetManager:
 
                 has_markup = md_file.exists()
                 md_meta = self._parse_markdown_metadata(md_file) if has_markup else {}
+                req_file = py_file.with_suffix(".requirements.txt")
 
                 scripts.append({
                     "id": base_stem,
@@ -146,6 +176,8 @@ class ScriptAssetManager:
                     "size_formatted": f"{round(size_bytes / 1024, 1)} KB" if size_bytes >= 1024 else f"{size_bytes} B",
                     "modified_at": mtime,
                     "has_markup": has_markup,
+                    "has_requirements": req_file.exists(),
+                    "is_verified": md_meta.get("is_verified", False),
                     "purpose_summary": md_meta.get("purpose_summary", "No description provided."),
                     "category": md_meta.get("category", "Automation"),
                     "author": md_meta.get("author", "krokbot_agent"),
@@ -161,6 +193,7 @@ class ScriptAssetManager:
         clean_name = self._sanitize_name(name)
         py_path = self.scripts_dir / clean_name
         md_path = py_path.with_suffix(".md")
+        req_path = py_path.with_suffix(".requirements.txt")
 
         with self._lock:
             if not py_path.exists():
@@ -178,6 +211,13 @@ class ScriptAssetManager:
                 except Exception:
                     markdown_content = ""
 
+            requirements_content = ""
+            if req_path.exists():
+                try:
+                    requirements_content = req_path.read_text(encoding="utf-8")
+                except Exception:
+                    requirements_content = ""
+
             md_meta = self._parse_markdown_metadata(md_path)
             stats = py_path.stat()
 
@@ -188,6 +228,9 @@ class ScriptAssetManager:
                 "markup_filename": f"{py_path.stem}.md",
                 "code": code,
                 "markdown": markdown_content,
+                "requirements": requirements_content,
+                "has_requirements": req_path.exists(),
+                "is_verified": md_meta.get("is_verified", False),
                 "sha256": self._compute_sha256(code),
                 "size_bytes": stats.st_size,
                 "modified_at": datetime.fromtimestamp(stats.st_mtime, tz=timezone.utc).isoformat(),
@@ -203,13 +246,16 @@ class ScriptAssetManager:
         purpose: Optional[str] = None,
         markdown_content: Optional[str] = None,
         category: str = "General Automation",
-        author: str = "krokbot_agent"
+        author: str = "krokbot_agent",
+        requirements_content: Optional[str] = None,
+        verification_info: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Save Python script code and its paired Markdown documentation file."""
         self._ensure_dir_exists()
         clean_name = self._sanitize_name(name)
         py_path = self.scripts_dir / clean_name
         md_path = py_path.with_suffix(".md")
+        req_path = py_path.with_suffix(".requirements.txt")
 
         if not purpose:
             purpose = f"Automated Python task script for {clean_name} synthesized by KrokBot Agent."
@@ -220,7 +266,9 @@ class ScriptAssetManager:
                 purpose=purpose,
                 code=code,
                 category=category,
-                author=author
+                author=author,
+                requirements_content=requirements_content,
+                verification_info=verification_info
             )
 
         with self._lock:
@@ -228,6 +276,9 @@ class ScriptAssetManager:
             py_path.write_text(code, encoding="utf-8")
             # Write paired .md file
             md_path.write_text(markdown_content, encoding="utf-8")
+            # Write optional requirements.txt if present
+            if requirements_content and requirements_content.strip():
+                req_path.write_text(requirements_content.strip() + "\n", encoding="utf-8")
 
             stats = py_path.stat()
             mtime = datetime.fromtimestamp(stats.st_mtime, tz=timezone.utc).isoformat()
@@ -241,6 +292,9 @@ class ScriptAssetManager:
                 "markup_filename": f"{py_path.stem}.md",
                 "code": code,
                 "markdown": markdown_content,
+                "requirements": requirements_content or "",
+                "has_requirements": req_path.exists(),
+                "is_verified": verification_info.get("exit_code") == 0 if verification_info else False,
                 "sha256": sha256,
                 "size_bytes": stats.st_size,
                 "modified_at": mtime,
@@ -248,10 +302,176 @@ class ScriptAssetManager:
             }
 
     def delete_script(self, name: str) -> bool:
-        """Delete script file (.py) and its paired documentation (.md)."""
+        """Delete script file (.py) and its paired documentation (.md) and requirements."""
         clean_name = self._sanitize_name(name)
         py_path = self.scripts_dir / clean_name
         md_path = py_path.with_suffix(".md")
+        req_path = py_path.with_suffix(".requirements.txt")
+
+        with self._lock:
+            deleted = False
+            if py_path.exists():
+                try:
+                    py_path.unlink()
+                    deleted = True
+                except Exception:
+                    pass
+            if md_path.exists():
+                try:
+                    md_path.unlink()
+                    deleted = True
+                except Exception:
+                    pass
+            if req_path.exists():
+                try:
+                    req_path.unlink()
+                except Exception:
+                    pass
+            return deleted
+
+    def validate_and_verify(
+        self,
+        filename: str,
+        code: str,
+        requirements_content: Optional[str] = None,
+        auto_install: bool = True,
+        sandbox_executor = None
+    ) -> Dict[str, Any]:
+        """
+        Validates Python syntax and verifies that execution in the sandbox succeeds,
+        checking that all specified requirements in requirements.txt are installed.
+        """
+        import ast
+        import sys
+        import subprocess
+        import importlib.util
+
+        clean_name = self._sanitize_name(filename)
+
+        # 1. Syntax Check via AST
+        try:
+            ast.parse(code, filename=clean_name)
+            valid_syntax = True
+        except SyntaxError as e:
+            return {
+                "status": "syntax_error",
+                "valid_syntax": False,
+                "requirements_ok": False,
+                "execution_verified": False,
+                "exit_code": 1,
+                "stdout": "",
+                "stderr": f"SyntaxError at line {e.lineno}, col {e.offset}: {e.msg}",
+                "error": f"SyntaxError at line {e.lineno}: {e.msg}",
+                "missing_packages": [],
+                "installed_packages": [],
+                "duration_ms": 0.0
+            }
+
+        # 2. Requirements & Dependencies Check
+        requirements_ok = True
+        missing_packages = []
+        installed_packages = []
+        install_logs = []
+
+        if requirements_content:
+            req_lines = [line.strip() for line in requirements_content.splitlines() if line.strip() and not line.strip().startswith("#")]
+            for req_line in req_lines:
+                clean_pkg = re.split(r"[><=~!;@\s]", req_line)[0].strip()
+                if not clean_pkg:
+                    continue
+
+                clean_mod = clean_pkg.replace("-", "_").lower()
+                is_installed = False
+
+                if clean_mod in sys.builtin_module_names:
+                    is_installed = True
+                elif importlib.util.find_spec(clean_mod) is not None:
+                    is_installed = True
+                else:
+                    try:
+                        import importlib.metadata
+                        importlib.metadata.version(clean_pkg)
+                        is_installed = True
+                    except Exception:
+                        is_installed = False
+
+                if is_installed:
+                    installed_packages.append(clean_pkg)
+                else:
+                    if auto_install:
+                        try:
+                            p = subprocess.run(
+                                [sys.executable, "-m", "pip", "install", req_line],
+                                capture_output=True,
+                                text=True,
+                                timeout=90
+                            )
+                            if p.returncode == 0:
+                                installed_packages.append(clean_pkg)
+                                install_logs.append(f"Successfully installed {req_line}")
+                            else:
+                                missing_packages.append(req_line)
+                                requirements_ok = False
+                                install_logs.append(f"Failed to install {req_line}: {p.stderr}")
+                        except Exception as e:
+                            missing_packages.append(req_line)
+                            requirements_ok = False
+                            install_logs.append(f"Error running pip install {req_line}: {e}")
+                    else:
+                        missing_packages.append(req_line)
+                        requirements_ok = False
+
+        if not requirements_ok:
+            return {
+                "status": "requirements_missing",
+                "valid_syntax": True,
+                "requirements_ok": False,
+                "execution_verified": False,
+                "exit_code": 1,
+                "stdout": "\n".join(install_logs),
+                "stderr": f"Missing or uninstalled requirements: {', '.join(missing_packages)}",
+                "error": f"Missing requirements: {', '.join(missing_packages)}",
+                "missing_packages": missing_packages,
+                "installed_packages": installed_packages,
+                "duration_ms": 0.0
+            }
+
+        # 3. Test execution in Sandbox
+        if sandbox_executor is None:
+            from krokbot.sandbox.executor import SandboxExecutor
+            sandbox_executor = SandboxExecutor()
+
+        test_file_name = f"__test_verify_{clean_name}"
+        sandbox_executor.write_file(test_file_name, code)
+
+        start_t = datetime.now(timezone.utc)
+        exec_res = sandbox_executor.execute_file(test_file_name)
+        duration_ms = round((datetime.now(timezone.utc) - start_t).total_seconds() * 1000, 1)
+
+        try:
+            test_path = sandbox_executor._resolve_path(test_file_name)
+            if test_path.exists():
+                test_path.unlink()
+        except Exception:
+            pass
+
+        exit_code = exec_res.get("exit_code", 1)
+        is_verified = (exit_code == 0)
+
+        return {
+            "status": "verified" if is_verified else "execution_failed",
+            "valid_syntax": True,
+            "requirements_ok": True,
+            "execution_verified": is_verified,
+            "exit_code": exit_code,
+            "stdout": exec_res.get("stdout", ""),
+            "stderr": exec_res.get("stderr", ""),
+            "error": "" if is_verified else f"Execution failed with exit code {exit_code}",
+            "missing_packages": missing_packages,
+            "installed_packages": installed_packages,
+            "install_logs": "\n".join(install_logs),
+            "duration_ms": duration_ms
+        }
 
         with self._lock:
             deleted = False
