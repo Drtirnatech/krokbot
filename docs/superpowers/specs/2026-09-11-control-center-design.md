@@ -176,15 +176,16 @@ Enables agents within a node (and optionally across the fleet via C2 relay) to c
 ## 7. Control Center (C2) Web Application Stack
 
 ### 7.1 Tech Stack
-* **Backend**: FastAPI (Python 3.12, AsyncIO, WebSockets).
-* **Database**: SQLite in **WAL (Write-Ahead Logging)** mode via SQLAlchemy / SQLModel:
+* **Framework**: Next.js 15+ (App Router, TypeScript, React Server Components & Server Actions).
+* **Runtime**: Node.js (v22 LTS).
+* **Database**: Local SQLite in **WAL (Write-Ahead Logging)** mode via Prisma ORM / better-sqlite3:
   * Zero server administration, single file (`c2_fleet.db`).
-  * Supports hundreds of concurrent edge write streams with microsecond latency.
-* **Frontend**: Vanilla CSS + Modular JS, adhering to KrokBot's Cyber-Industrial Design System:
-  * Matrix Phosphor, Amber CRT, Cyberpunk Cyan palettes.
-  * Real-time WebSocket state synchronizer (zero page reloads).
-  * Responsive layout for workstations, tablets, and rugged field tablets.
-* **Default Port**: `5200` (Configurable via `control_center_config.yaml` or `C2_PORT` env).
+  * Auto-migrated schema with strong TypeScript typing and relation safety.
+* **Frontend Design System**:
+  * Pure CSS Modules / Vanilla CSS Design Tokens (Inter / Outfit / JetBrains Mono typography).
+  * Cyber-Industrial themes matching KrokBot (Matrix Phosphor, Amber CRT, Slate Industrial).
+  * Real-time Server-Sent Events (SSE) and reactive client hooks for fleet state updates without page reloads.
+* **Default Port**: `5200` (e.g. `npm run dev -- -p 5200` or `PORT=5200`).
 
 ### 7.2 Core Database Schema (`c2_fleet.db`)
 
@@ -287,10 +288,13 @@ The C2 dashboard runs at `http://localhost:5200` and features five core operatio
 * **Phase 2: Cryptographic Tunnel & Edge Client**
   * Implement reverse WebSocket tunnel client on the agent side.
   * Implement Ed25519 enrollment and handshake verification.
-* **Phase 3: Standalone Control Center (C2) Core & Backend**
-  * Scaffold `krokbot-c2/` application with FastAPI + SQLite (WAL mode) + SQLAlchemy.
-  * Build reverse tunnel gateway, node registry, and agent command dispatcher.
-* **Phase 4: C2 Industrial Web Dashboard**
-  * Build reactive frontend on port 5200 with fleet grid, agent orchestrator, model manager, and audit log.
-* **Phase 5: End-to-End Testing & Jetson Edge Emulation**
-  * Write automated integration tests for multi-agent co-location, inference queue under load, and network drop recovery.
+* **Phase 3: Standalone Control Center (C2) Next.js Web Application**
+  * Scaffold `control_center/` application using Next.js 15+ (App Router, TypeScript).
+  * Configure local SQLite database in WAL mode using Prisma ORM (`c2_fleet.db`).
+  * Implement Route Handlers (`/api/nodes`, `/api/nodes/[id]/agents`, `/api/nodes/[id]/deploy`, `/api/telemetry`).
+* **Phase 4: Next.js Industrial Fleet Operations UI**
+  * Build responsive, reactive components using Pure CSS Modules and cyber-industrial design tokens on port `5200`.
+  * Fleet overview grid, multi-agent orchestrator panel, model manager, and live SSE telemetry stream.
+* **Phase 5: End-to-End Integration Testing**
+  * Multi-agent co-location verification inside Docker.
+  * Test C2 deploying an agent into the running container and executing remote API commands.
