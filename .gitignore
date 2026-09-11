@@ -5,4 +5,4 @@ models/*.gguf
 data/
 .venv/
 report.txt
-
+*.tsbuildinfo
