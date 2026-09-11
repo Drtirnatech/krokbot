@@ -256,16 +256,98 @@ Verify that agent lifecycles (deployment, command execution, stopping, and delet
 
 ---
 
+## TEST 07: Edge Compute SysOps, Process Supervisor, Self-Healing Watchdog & Fleet Command Broadcast
+
+### Objective
+Verify the end-to-end edge compute operations suite:
+1. Live hardware thermal package telemetry monitoring (`max_temp_c`) with throttling detection.
+2. Live process inspection table with protected process flags.
+3. Strict prevention of remote termination for protected PIDs (PID 1, sentinel, system init daemons) via `HTTP 403 Forbidden`.
+4. Operational system memory trimming (`malloc_trim(0)`) and temporary workspace cache pruning via `🧹 Clean`.
+5. Self-Healing Watchdog rule evaluation and interactive policy toggling (Storage Pressure, Thermal Throttling, Worker Memory Leaks, Inference Heartbeat).
+6. Fleet-Wide Parallel Command Broadcast across all registered edge compute nodes.
+
+### Pre-conditions
+- Master container node `node-jetson-primary` is online at `http://localhost:5200`.
+- Primary Sentinel (`krok-prime-01`, Port 5150) and SysOps API are operational.
+
+### Test Procedure
+
+#### Step 1: Verify Hardware SoC Thermals on Node Summary Line
+1. Open C2 Dashboard at `http://localhost:5200`.
+2. On the `node-jetson-primary` summary line, locate the SoC Thermal Chip: `🌡️ XX.X°C`.
+3. Confirm temperature is displayed with 1-decimal precision and nominal styling (`#ffb000`). If simulated or actual thermals cross 75.0°C, verify the badge pulses red.
+
+#### Step 2: Open Live Process Inspector Modal (`⚙️ SysOps`)
+1. On the `node-jetson-primary` summary row, click **⚙️ SysOps**.
+2. Observe the modal open with title `Edge Process Inspector — NVIDIA Jetson Orin Nano (Primary Node)`.
+3. Confirm the process table loads within 500ms displaying:
+   - Container processes with PID, Process Name, Memory (RSS MB), and CPU %.
+   - System supervisor processes (PID 1) displaying a prominent green `PROTECTED` badge and disabled `System Core` label.
+   - Non-critical worker processes displaying an active red `Terminate` button.
+
+#### Step 3: Test Termination Safety Guards (Protected PID 1)
+1. In a terminal or API test runner, attempt to remotely terminate PID 1:
+   ```bash
+   curl -X POST http://localhost:5200/api/fleet/nodes/node-jetson-primary/sysops/processes/1/kill
+   ```
+2. Confirm the response returns `HTTP 403 Forbidden` with body:
+   ```json
+   {
+     "status": "error",
+     "message": "PID 1 is protected by edge safety policy and cannot be terminated."
+   }
+   ```
+3. Close the modal by clicking **Close** or **×**.
+
+#### Step 4: Test Operational System Cleanup (`🧹 Clean`)
+1. On the `node-jetson-primary` summary row, click **🧹 Clean**.
+2. Confirm memory trimming and temporary cache cleanup executes immediately.
+3. Observe confirmation notice displaying recovered memory in MB and pruned temporary file count.
+
+#### Step 5: Verify Self-Healing Watchdog Engine & Policies
+1. Expand the `node-jetson-primary` card accordion.
+2. In the `🛡️ Self-Healing Watchdog Policies` section, locate the operational policy pills:
+   - `Auto-Clean (85% Disk)`
+   - `Thermal Guard (75°C)`
+   - `Memory Leak Recovery (800MB)`
+   - `Inference Heartbeat Watchdog`
+3. Click any active policy pill (e.g. `Auto-Clean`). Verify the pill toggles state to `OFF`, updating the watchdog rule in memory.
+4. Click the pill again to toggle it back to `ACTIVE`.
+
+#### Step 6: Test Fleet-Wide Command Broadcast Console
+1. Scroll down to the **Autonomous Agent Command Console**.
+2. In the header toggle bar, click **[ 📡 Fleet Broadcast (All Nodes) ]**.
+3. Verify the target dropdowns are replaced by the high-visibility notice:
+   `FLEET-WIDE BROADCAST ACTIVE: Your autonomous instruction will be concurrently dispatched to the primary agent on all registered edge nodes.`
+4. Verify the dispatch button updates to `BROADCAST TO FLEET 📡`.
+5. Enter instruction:
+   ```text
+   Audit system memory overhead and report disk readiness.
+   ```
+6. Click **BROADCAST TO FLEET 📡**.
+7. Confirm parallel execution completes across all nodes, displaying individual node results and logging separate entries in the C2 Audit Log.
+
+#### Step 7: Verification & Acceptance Criteria
+- [ ] **Thermal Chip**: Live SoC thermals stream continuously with nominal/throttling state indicators.
+- [ ] **Process Table**: Accurate memory RSS and CPU metrics rendered with sub-second latency.
+- [ ] **Process Protection**: Remote kill attempts against PID 1 or core system daemons are rejected with HTTP 403.
+- [ ] **Cleanup Action**: Releases fragmented heap using `malloc_trim(0)` and purges temporary files without service disruption.
+- [ ] **Watchdog Toggles**: Real-time rule toggles persist and trigger self-healing remediations upon metric breaches.
+- [ ] **Fleet Broadcast**: Concurrent dispatch across all nodes verified with parallel execution results.
+
+---
+
 ## 3. Automated Validation Test Command Summary
 
 For continuous integration or rapid CLI regression testing, execute:
 
 ```powershell
-# 1. Run full C2 TypeScript test suite (API endpoints, remote client, SQLite fleet DB)
+# 1. Run full C2 TypeScript test suite (API endpoints, remote client, SQLite fleet DB, SysOps suite)
 cd control_center
 npm test
 
-# 2. Run Python agent test suite (scheduler, sandbox, audit logger, tool policy manager)
+# 2. Run Python agent test suite (scheduler, sandbox, audit logger, tool policy manager, SysOps diagnostics)
 cd ..
 pytest tests/ -v
 ```

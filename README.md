@@ -1,48 +1,84 @@
-# KrokBot - Autonomous Workstation Health Agent PoC
+# KrokBot - Autonomous Edge Compute Multi-Agent Platform
 
-KrokBot is a single-agent proof-of-concept inspired by GrokBot. It utilizes a **MarinaBox** virtual compute sandbox, a local **Llama.cpp** LLM server (running GGUF quantized models), a **Host API Bridge** daemon (`psutil`), and a **Web Dashboard** to inspect system health autonomously.
+KrokBot is a high-performance, containerized multi-agent system designed for **edge compute devices** (such as NVIDIA Jetson Orin Nano, industrial x86/ARM micro-nodes, and workstations). It provides autonomous diagnostic scripting, self-healing system operations, hardware thermal tracking, and a centralized Command & Control (C2) fleet manager.
 
-## Architecture & Features
+---
 
-* **Host API Bridge (`http://localhost:8990`)**: FastAPI daemon providing secure access to host OS metrics, storage partitions, and running processes.
-* **MarinaBox Compute Sandbox**: Isolated script execution sandbox for dynamic diagnostic code prototyping.
-* **Llama.cpp Local Inference (`http://localhost:8081`)**: Completely offline reasoning loop using OpenAI-compatible ChatML endpoints.
-* **Web Dashboard (`http://localhost:5150`)**: Live dark-mode Web UI dashboard with interactive terminal, diagnostic controls, and scheduled cron jobs.
-* **Health Report**: Automatic markdown export (`krokbot_health_report.md`).
+## Architecture & Edge Compute Design
+
+Rather than running multiple heavy containers that exhaust edge device memory, KrokBot deploys a **Single Master Container** architecture:
+
+* **Primary Sentinel (`krok-prime-01`, Port 5150)**: Manages node lifecycle, cron tasks, and edge SysOps.
+* **Lightweight Co-Located Worker Agents**: Dynamically spawned on separate ports with isolated workspace directories (`/app/workspaces/agent_<id>`).
+* **Shared In-Container Llama.cpp Arbiter (`Port 8081`)**: Loads quantized GGUF models once in VRAM/RAM, serving OpenAI-compatible ChatML inference to all co-located agents simultaneously.
+* **Edge SysOps Engine**:
+  * **Hardware Diagnostics**: Direct reading of SoC thermal package sensors (`max_temp_c`), storage partitions, and network I/O.
+  * **Container Process Supervisor**: Fast `psutil` sampling with strict safety guards protecting PID 1, system init daemons, and sentinel agents (`HTTP 403 Forbidden`).
+  * **Operational Memory Trimmer**: Releases fragmented heap back to the OS kernel via Linux glibc `malloc_trim(0)`.
+  * **Self-Healing Watchdog**: Autonomous rules evaluating storage pressure (>85%), thermal throttling (>75°C), worker memory leaks (>800 MB), and inference heartbeats.
+* **C2 Central Command Suite (`Port 5200`)**: Next.js / React C2 dashboard featuring expandable edge device tabs, live SoC thermal chips, a live Process Inspector modal, and parallel Fleet Command Broadcasting.
+
+```mermaid
+graph TD
+    C2[C2 Central Command Suite :5200] <-->|SysOps RPC & Telemetry| PS[Primary Sentinel :5150]
+    C2 <-->|Fleet Broadcast 📡| PS
+    subgraph Master Container [krokbot_agent Container]
+        PS
+        W1[Worker Agent 02 :5151]
+        W2[Worker Agent 03 :5152]
+        ARB[Shared Llama.cpp Arbiter :8081]
+        SO[SysOps Engine & Self-Healing Watchdog]
+    end
+    PS <-->|Shared Inference| ARB
+    W1 <-->|Shared Inference| ARB
+    W2 <-->|Shared Inference| ARB
+```
+
+---
 
 ## Quickstart & Docker Deployment
 
-The main KrokBot container contains the embedded Llama.cpp runtime, Host Bridge, and Dashboard orchestrator in an all-in-one package:
+Launch the all-in-one container with embedded Llama.cpp runtime, Sentinel, and SysOps engine:
 
 ```bash
-# Place your GGUF model into ./models (e.g. Qwen3-4B-Q4_K_M.gguf)
+# Place your GGUF model into ./models (e.g. qwen2.5-coder-1.5b-instruct-q4_k_m.gguf)
 # Build and launch all services with Docker Compose:
 docker compose up --build -d
 ```
 
-Access the services:
-- **Web Dashboard**: `http://localhost:5150`
-- **Host Bridge API**: `http://localhost:8990`
-- **Llama.cpp Server**: `http://localhost:8081/v1/models`
+Start the C2 Central Command dashboard:
 
-## Local Development Setup
-
-1. Create & activate virtual environment:
-   ```powershell
-   .\setup_venv.ps1  # Windows PowerShell
-   ```
-
-2. Start your local Llama.cpp server or place model in `./models/`:
-   ```bash
-   python -m llama_cpp.server --model ./models/Qwen3-4B-Q4_K_M.gguf --port 8081 --chat_format chatml
-   ```
-
-3. Run KrokBot Launcher:
-   ```bash
-   python run_krokbot.py
-   ```
-
-## Running Tests
 ```bash
-pytest -v
+cd control_center
+npm run dev
 ```
+
+### Access Ports & Services
+- **C2 Fleet Control Center**: `http://localhost:5200`
+- **Primary Agent Dashboard & API**: `http://localhost:5150`
+- **Shared Llama.cpp Server**: `http://localhost:8081/v1/models`
+
+---
+
+## Testing & Quality Verification
+
+Run the full end-to-end regression suites:
+
+```powershell
+# 1. Run C2 TypeScript Test Suite (40/40 tests passing)
+cd control_center
+npm test
+
+# 2. Run Python Agent & SysOps Test Suite (26/26 tests passing)
+cd ..
+pytest tests/ -v
+```
+
+---
+
+## Documentation
+
+- [Edge Compute SysOps & Fleet Operations Guide](docs/EDGE_COMPUTE_SYSOPS_GUIDE.md)
+- [System Validation Test Suite (Tests 01-07)](docs/SYSTEM_VALIDATION_TEST_SUITE.md)
+- [Automated Functional Test Results Report](docs/AUTOMATED_FUNCTIONAL_TEST_RESULTS.md)
+
