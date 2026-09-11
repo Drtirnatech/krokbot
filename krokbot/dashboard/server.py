@@ -609,6 +609,43 @@ def reset_tools_endpoint():
     updated = tools_mgr.reset_to_defaults(updated_by="dashboard_reset")
     return {"status": "success", "config": updated}
 
+@app.get("/api/agents")
+@app.get("/api/v1/agents")
+def list_agents_endpoint():
+    """List all agents managed within this container."""
+    from krokbot.supervisor import get_supervisor
+    sup = get_supervisor()
+    return {"status": "success", "agents": sup.list_agents()}
+
+@app.post("/api/agents/deploy")
+@app.post("/api/v1/agents/deploy")
+def deploy_agent_endpoint(payload: Dict[str, Any]):
+    """Deploy a new uniform agent instance inside the running container."""
+    from krokbot.supervisor import get_supervisor
+    sup = get_supervisor()
+    aid = payload.get("id") or payload.get("agent_id")
+    name = payload.get("name") or payload.get("agent_name") or f"KrokBot Worker {aid}"
+    if not aid:
+        raise HTTPException(status_code=400, detail="Agent ID is required.")
+    try:
+        res = sup.spawn_agent(agent_id=aid, agent_name=name, config_overrides=payload)
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to deploy agent: {e}")
+
+@app.post("/api/agents/{agent_id}/stop")
+@app.post("/api/v1/agents/{agent_id}/stop")
+def stop_agent_endpoint(agent_id: str):
+    """Stop a spawned agent instance."""
+    from krokbot.supervisor import get_supervisor
+    sup = get_supervisor()
+    success = sup.stop_agent(agent_id)
+    if not success:
+        raise HTTPException(status_code=400, detail=f"Cannot stop agent '{agent_id}' (not found or protected primary agent).")
+    return {"status": "success", "message": f"Agent '{agent_id}' stopped."}
+
 
 def export_health_report(filepath: str, report_content: str, metrics: Dict[str, Any]) -> None:
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
