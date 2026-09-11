@@ -465,6 +465,10 @@ def activate_model_endpoint(filename: str):
     from krokbot.model_manager import set_active_model
     try:
         res = set_active_model(filename)
+        if agent_instance_ref and hasattr(agent_instance_ref, "client"):
+            agent_instance_ref.client.model = res.get("name", filename)
+        global _cached_storage_size
+        _cached_storage_size["last_scan"] = 0.0
         return res
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

@@ -187,7 +187,8 @@ def test_dashboard_activate_model_endpoint(tmp_path):
     cfg_file.write_text("model:\n  filename: other.gguf\n", encoding="utf-8")
 
     with patch("krokbot.model_manager.find_models_dir", return_value=str(models_dir)), \
-         patch("krokbot.model_manager.find_config_file", return_value=str(cfg_file)):
+         patch("krokbot.model_manager.find_config_file", return_value=str(cfg_file)), \
+         patch("krokbot.model_manager._restart_local_llama_server", return_value=True):
         resp = client.post("/api/models/phi3.gguf/activate")
         assert resp.status_code == 200
         data = resp.json()

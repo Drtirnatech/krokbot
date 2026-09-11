@@ -1919,7 +1919,7 @@
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td><strong style="font-family: var(--font-mono);">${escapeHtml(m.filename)}</strong></td>
-                        <td><code class="id-badge">${m.size_mb} MB</code></td>
+                        <td><code class="id-badge">${m.size_formatted || (m.size_mb >= 1024 ? (m.size_mb / 1024).toFixed(2) + ' GB (' + m.size_mb + ' MB)' : m.size_mb + ' MB')}</code></td>
                         <td><small style="color: var(--text-muted); font-family: var(--font-mono);">${m.modified}</small></td>
                         <td>${badge}</td>
                         <td style="text-align: right; white-space: nowrap;">

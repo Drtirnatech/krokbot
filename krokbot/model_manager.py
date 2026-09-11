@@ -101,12 +101,21 @@ def get_available_models(models_dir: Optional[str] = None) -> List[Dict[str, Any
             fpath = os.path.join(mdir, fname)
             try:
                 stat = os.stat(fpath)
-                size_mb = round(stat.st_size / (1024 * 1024), 2)
+                size_bytes = stat.st_size
+                size_mb = round(size_bytes / (1024 * 1024), 2)
+                size_gb = round(size_bytes / (1024 * 1024 * 1024), 2)
+                if size_gb >= 1.0:
+                    size_formatted = f"{size_gb:.2f} GB ({size_mb:.1f} MB)"
+                else:
+                    size_formatted = f"{size_mb:.1f} MB"
                 modified = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime))
                 models.append({
                     "filename": fname,
                     "path": fpath,
+                    "size_bytes": size_bytes,
                     "size_mb": size_mb,
+                    "size_gb": size_gb,
+                    "size_formatted": size_formatted,
                     "modified": modified
                 })
             except Exception:
@@ -278,13 +287,17 @@ def save_config(cfg: Dict[str, Any], config_path: Optional[str] = None) -> str:
     return path
 
 def _restart_local_llama_server(model_path: str, port: int = 8081, n_ctx: int = 2048, chat_format: str = "chatml") -> bool:
-    """Terminate existing llama_cpp.server and launch with the new model file."""
+    """Terminate existing llama_cpp.server and launch with the new model file, verifying in-memory activation."""
     import psutil
     import subprocess
+    import socket
+    import urllib.request
+    import json
 
     current_pid = os.getpid()
     found_running = False
 
+    # 1. Terminate any running llama_cpp.server processes
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
             cmdline = proc.info.get('cmdline') or []
@@ -299,9 +312,16 @@ def _restart_local_llama_server(model_path: str, port: int = 8081, n_ctx: int = 
         except Exception:
             pass
 
-    if not found_running:
-        return False
+    # 2. Ensure port is fully released
+    for _ in range(15):
+        try:
+            s = socket.create_connection(("127.0.0.1", port), timeout=0.2)
+            s.close()
+            time.sleep(0.3)
+        except Exception:
+            break
 
+    # 3. Launch llama_cpp.server with the new model
     cmd = [
         sys.executable, "-m", "llama_cpp.server",
         "--model", model_path,
@@ -312,6 +332,23 @@ def _restart_local_llama_server(model_path: str, port: int = 8081, n_ctx: int = 
     ]
     try:
         subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        # 4. Verify that the new model is loaded and responding on /v1/models
+        target_basename = os.path.basename(model_path)
+        for _ in range(40):
+            time.sleep(0.5)
+            try:
+                req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/models")
+                with urllib.request.urlopen(req, timeout=1.0) as resp:
+                    if resp.status == 200:
+                        data = json.loads(resp.read().decode())
+                        loaded_ids = [m.get("id", "") for m in data.get("data", [])]
+                        if any(target_basename in lid for lid in loaded_ids):
+                            print(f"[ModelManager] Verified active model loaded in memory: {loaded_ids}")
+                            return True
+            except Exception:
+                continue
+
         return True
     except Exception as e:
         print(f"[ModelManager] Failed to launch llama_cpp.server: {e}")
