@@ -170,7 +170,9 @@ export const agentClient = {
             requires_confirmation: data.requires_confirmation || false,
             question: data.question || null,
             options: data.options || null,
-            target_filename: data.target_filename || null
+            target_filename: data.target_filename || null,
+            original_prompt: prompt,
+            exit_code: data.sandbox_output?.exit_code ?? (data.exit_code ?? 0)
           };
         }
       } catch {
@@ -208,7 +210,9 @@ export const agentClient = {
       requires_confirmation: data.requires_confirmation || false,
       question: data.question || null,
       options: data.options || null,
-      target_filename: data.target_filename || null
+      target_filename: data.target_filename || null,
+      original_prompt: prompt,
+      exit_code: data.sandbox_output?.exit_code ?? (data.exit_code ?? 0)
     };
   }
 };
