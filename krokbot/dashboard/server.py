@@ -28,7 +28,7 @@ def get_dashboard():
     index_file = os.path.join(static_dir, "index.html")
     if os.path.exists(index_file):
         return FileResponse(index_file)
-    return "<h1>KrokBot Workstation Dashboard</h1>"
+    return "<h1>KrokBot OS Agent Console</h1>"
 
 _last_cpu_time = None
 _last_check_time = None

@@ -8,7 +8,7 @@ client = TestClient(app)
 def test_dashboard_index_route():
     response = client.get("/")
     assert response.status_code == 200
-    assert "KrokBot Workstation Dashboard" in response.text
+    assert "KrokBot OS" in response.text and "Agent Console" in response.text
 
 def test_schedules_api_endpoints(tmp_path):
     from krokbot.scheduler.manager import CronSchedulerManager
