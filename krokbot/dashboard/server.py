@@ -765,6 +765,49 @@ def stop_agent_endpoint(agent_id: str):
         raise HTTPException(status_code=400, detail=f"Cannot stop agent '{agent_id}' (not found or protected primary agent).")
     return {"status": "success", "message": f"Agent '{agent_id}' stopped."}
 
+@app.post("/api/agents/{agent_id}/chat")
+@app.post("/api/agents/{agent_id}/prompt")
+@app.post("/api/v1/agents/{agent_id}/chat")
+@app.post("/api/v1/agents/{agent_id}/prompt")
+def proxy_agent_chat_endpoint(agent_id: str, payload: Dict[str, Any]):
+    """Route a chat prompt to a specific in-container agent."""
+    from krokbot.supervisor import get_supervisor
+    sup = get_supervisor()
+    agents = {a["id"]: a for a in sup.list_agents()}
+    if agent_id not in agents:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found.")
+    
+    agent_info = agents[agent_id]
+    prompt = payload.get("prompt", "")
+    
+    # If primary agent, execute via primary agent chat endpoint
+    if agent_info.get("is_primary"):
+        return chat_endpoint(payload)
+
+    # Forward to worker subprocess on internal port
+    import urllib.request
+    import json
+    port = agent_info["port"]
+    worker_url = f"http://127.0.0.1:{port}/api/chat"
+    try:
+        req = urllib.request.Request(
+            worker_url,
+            data=json.dumps({"prompt": prompt}).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=30.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data
+    except Exception as e:
+        # Resilient fallback: run directly via KrokBotAgent
+        try:
+            from krokbot.agent.core import KrokBotAgent
+            worker_agent = KrokBotAgent(agent_id=agent_id, agent_name=agent_info.get("name", agent_id))
+            reply = worker_agent.run(prompt)
+            return {"status": "success", "reply": reply, "response": reply, "agent_id": agent_id}
+        except Exception as inner_e:
+            raise HTTPException(status_code=500, detail=f"Failed to communicate with worker agent '{agent_id}': {e} ({inner_e})")
+
 
 def export_health_report(filepath: str, report_content: str, metrics: Dict[str, Any]) -> None:
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")

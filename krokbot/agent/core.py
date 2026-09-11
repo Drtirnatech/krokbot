@@ -713,3 +713,8 @@ class KrokBotAgent:
             "sandbox_output": sandbox_output,
             "browser_output": browser_output
         }
+
+    def run(self, prompt: str) -> str:
+        """Convenience execution wrapper returning final response string."""
+        res = self.run_task(prompt)
+        return res.get("clean_report") or res.get("report") or res.get("raw_report") or ""

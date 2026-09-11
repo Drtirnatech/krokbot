@@ -10,6 +10,7 @@ def create_worker_app(agent_id: str, agent_name: str, port: int, workspace: str)
     agent = KrokBotAgent(agent_id=agent_id, agent_name=agent_name)
 
     @app.get("/api/agent/info")
+    @app.get("/api/health")
     def info():
         return {
             "id": agent_id,
@@ -20,10 +21,11 @@ def create_worker_app(agent_id: str, agent_name: str, port: int, workspace: str)
         }
 
     @app.post("/api/prompt")
+    @app.post("/api/chat")
     def prompt_endpoint(payload: dict):
         text = payload.get("prompt", "")
         reply = agent.run(text)
-        return {"reply": reply, "agent_id": agent_id}
+        return {"status": "success", "reply": reply, "response": reply, "agent_id": agent_id}
 
     return app
 

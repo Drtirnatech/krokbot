@@ -18,7 +18,13 @@ export async function GET(
       return NextResponse.json({ status: 'error', message: 'Failed to fetch models from node' }, { status: 502 });
     }
     const data = await res.json();
-    return NextResponse.json(data);
+    return NextResponse.json({
+      status: 'success',
+      active_model: data.active_config?.name || data.active_model || 'Unknown',
+      models: data.available || data.models || [],
+      available: data.available || [],
+      catalog: data.catalog || []
+    });
   } catch (err: any) {
     return NextResponse.json({ status: 'error', message: err.message }, { status: 500 });
   }

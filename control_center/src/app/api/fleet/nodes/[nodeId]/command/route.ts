@@ -20,7 +20,7 @@ export async function POST(
     }
 
     const start = Date.now();
-    const result = await agentClient.sendPrompt(node.ip_address, prompt, port);
+    const result = await agentClient.sendPrompt(node.ip_address, prompt, port, agentId);
     const duration = Date.now() - start;
 
     // Record audit log

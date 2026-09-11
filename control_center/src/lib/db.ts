@@ -2,20 +2,37 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const DB_PATH = path.join(process.cwd(), 'c2_fleet.db');
+const DB_PATH = process.env.C2_DB_PATH || path.join(process.cwd(), 'c2_fleet.db');
 
 let dbInstance: DatabaseSync | null = null;
 
 export function getDb(): DatabaseSync {
   if (!dbInstance) {
     dbInstance = new DatabaseSync(DB_PATH);
-    dbInstance.exec('PRAGMA journal_mode = WAL;');
+    if (DB_PATH !== ':memory:') {
+      dbInstance.exec('PRAGMA journal_mode = WAL;');
+    }
     initSchema(dbInstance);
   }
   return dbInstance;
 }
 
-function initSchema(db: DatabaseSync) {
+export function setDb(db: DatabaseSync | null): void {
+  dbInstance = db;
+}
+
+export function closeDb(): void {
+  if (dbInstance) {
+    try {
+      dbInstance.close();
+    } catch {
+      // ignore
+    }
+    dbInstance = null;
+  }
+}
+
+export function initSchema(db: DatabaseSync) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS nodes (
       id TEXT PRIMARY KEY,
@@ -183,7 +200,7 @@ export const dbService = {
 
   getRecentTelemetry(nodeId: string, limit: number = 20) {
     const db = getDb();
-    const stmt = db.prepare('SELECT * FROM telemetry WHERE node_id = ? ORDER BY timestamp DESC LIMIT ?');
+    const stmt = db.prepare('SELECT * FROM telemetry WHERE node_id = ? ORDER BY id DESC, timestamp DESC LIMIT ?');
     return stmt.all(nodeId, limit);
   },
 
@@ -205,7 +222,7 @@ export const dbService = {
 
   getRecentAuditLogs(limit: number = 30) {
     const db = getDb();
-    const stmt = db.prepare('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT ?');
+    const stmt = db.prepare('SELECT * FROM audit_logs ORDER BY id DESC, timestamp DESC LIMIT ?');
     return stmt.all(limit);
   }
 };

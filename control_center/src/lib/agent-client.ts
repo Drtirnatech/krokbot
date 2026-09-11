@@ -125,10 +125,35 @@ export const agentClient = {
     return res.json();
   },
 
-  async sendPrompt(endpointUrl: string, prompt: string, agentPort?: number) {
-    let targetUrl = endpointUrl.replace(/\/+$/, '');
+  async sendPrompt(endpointUrl: string, prompt: string, agentPort?: number, agentId?: string) {
+    const cleanUrl = endpointUrl.replace(/\/+$/, '');
+
+    // 1. If agentId is specified and not primary, route through Gateway /api/agents/{agentId}/chat
+    if (agentId && agentId !== 'krok-prime-01') {
+      try {
+        const res = await fetch(`${cleanUrl}/api/agents/${encodeURIComponent(agentId)}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt }),
+          signal: AbortSignal.timeout(35000)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return {
+            status: data.status || 'success',
+            response: data.reply || data.response || data.raw_reply || '',
+            thinking: data.thinking || '',
+            metrics: data.metrics || {}
+          };
+        }
+      } catch {
+        // Fall through to direct port routing
+      }
+    }
+
+    // 2. Direct port or primary agent routing
+    let targetUrl = cleanUrl;
     if (agentPort && agentPort !== 5150) {
-      // route directly to subagent port
       const parsed = new URL(targetUrl);
       parsed.port = String(agentPort);
       targetUrl = parsed.toString().replace(/\/+$/, '');
@@ -137,7 +162,8 @@ export const agentClient = {
     const res = await fetch(`${targetUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt }),
+      signal: AbortSignal.timeout(35000)
     });
     if (!res.ok) {
       const err = await res.text();
