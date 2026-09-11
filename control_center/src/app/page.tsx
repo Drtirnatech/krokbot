@@ -1549,11 +1549,44 @@ export default function ControlCenterDashboard() {
                   </div>
                 )}
 
-                <pre className="text-[11px] text-[#a4c5b5] whitespace-pre-wrap font-mono pt-1 max-h-48 overflow-y-auto">
-                  {typeof commandOutput.result?.response === 'string'
-                    ? commandOutput.result.response
-                    : JSON.stringify(commandOutput, null, 2)}
-                </pre>
+                {commandOutput.broadcast ? (
+                  <div className="space-y-2.5 pt-1">
+                    <div className="flex items-center justify-between text-[11px] text-[#5b7a6b] border-b border-[#141f19] pb-1.5 font-mono">
+                      <span>FLEET CONCURRENT EXECUTION SUMMARY</span>
+                      <span className="text-[#00e5ff] font-bold">
+                        {commandOutput.result?.total_nodes || 0} Target Nodes • {commandOutput.result?.duration_ms?.toFixed(0) || 0}ms Latency
+                      </span>
+                    </div>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {(commandOutput.result?.results || commandOutput.result?.broadcast_results || []).map((nodeRes: any) => (
+                        <div key={nodeRes.nodeId} className="p-3 rounded bg-[#090e0b] border border-[#18261e] space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-white font-mono flex items-center gap-1.5">
+                              <span className={nodeRes.status === 'success' ? 'text-[#00ff66]' : 'text-[#ff3344]'}>●</span>
+                              <span>{nodeRes.nodeId}</span>
+                            </span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${
+                              nodeRes.status === 'success'
+                                ? 'bg-[#102419] text-[#00ff66] border border-[#00ff66]/40'
+                                : 'bg-[#241014] text-[#ff3344] border border-[#ff3344]/40'
+                            }`}>
+                              {nodeRes.status?.toUpperCase() || 'SUCCESS'}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-[#a4c5b5] font-mono whitespace-pre-wrap pl-3 border-l-2 border-[#1e3325]">
+                            {nodeRes.data?.response || nodeRes.message || JSON.stringify(nodeRes, null, 2)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <pre className="text-[11px] text-[#a4c5b5] whitespace-pre-wrap font-mono pt-1 max-h-48 overflow-y-auto">
+                    {typeof commandOutput.result?.response === 'string'
+                      ? commandOutput.result.response
+                      : JSON.stringify(commandOutput, null, 2)}
+                  </pre>
+                )}
               </div>
             )}
           </div>
