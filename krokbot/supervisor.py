@@ -139,6 +139,16 @@ class AgentSupervisor:
         agent["status"] = "stopped"
         return True
 
+    def remove_agent(self, agent_id: str) -> bool:
+        """Terminate and permanently remove a spawned agent from the supervisor."""
+        if agent_id not in self._agents:
+            return False
+        if self._agents[agent_id].get("is_primary"):
+            return False  # Protect primary agent
+        self.stop_agent(agent_id)
+        self._agents.pop(agent_id, None)
+        return True
+
 _global_supervisor: Optional[AgentSupervisor] = None
 
 def get_supervisor() -> AgentSupervisor:

@@ -765,6 +765,18 @@ def stop_agent_endpoint(agent_id: str):
         raise HTTPException(status_code=400, detail=f"Cannot stop agent '{agent_id}' (not found or protected primary agent).")
     return {"status": "success", "message": f"Agent '{agent_id}' stopped."}
 
+@app.delete("/api/agents/{agent_id}")
+@app.post("/api/agents/{agent_id}/remove")
+@app.post("/api/v1/agents/{agent_id}/remove")
+def remove_agent_endpoint(agent_id: str):
+    """Terminate and permanently remove an agent instance from the container supervisor."""
+    from krokbot.supervisor import get_supervisor
+    sup = get_supervisor()
+    success = sup.remove_agent(agent_id)
+    if not success:
+        raise HTTPException(status_code=400, detail=f"Cannot remove agent '{agent_id}' (not found or protected primary agent).")
+    return {"status": "success", "message": f"Agent '{agent_id}' removed from container."}
+
 @app.post("/api/agents/{agent_id}/chat")
 @app.post("/api/agents/{agent_id}/prompt")
 @app.post("/api/v1/agents/{agent_id}/chat")

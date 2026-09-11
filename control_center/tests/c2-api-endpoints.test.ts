@@ -42,7 +42,7 @@ describe('C2 Fleet API Endpoints & Multi-Agent Operations', () => {
       assert.match(data.message, /Missing required node parameters/);
     });
 
-    it('POST /api/fleet/nodes should successfully register a new edge node', async () => {
+    it('POST /api/fleet/nodes should successfully register and then delete a new edge node', async () => {
       const edgeNodeId = `node-edge-test-${Date.now()}`;
       const res = await fetch(`${BASE_URL}/api/fleet/nodes`, {
         method: 'POST',
@@ -59,6 +59,14 @@ describe('C2 Fleet API Endpoints & Multi-Agent Operations', () => {
       assert.equal(data.node.id, edgeNodeId);
       assert.equal(data.node.name, 'Remote Jetson Edge Worker');
       assert.equal(data.node.ip_address, 'http://192.168.1.120:5150');
+
+      // Test DELETE node endpoint to ensure test node does not linger in DB
+      const delRes = await fetch(`${BASE_URL}/api/fleet/nodes/${edgeNodeId}`, {
+        method: 'DELETE'
+      });
+      assert.equal(delRes.status, 200);
+      const delData = await delRes.json();
+      assert.equal(delData.status, 'success');
     });
   });
 

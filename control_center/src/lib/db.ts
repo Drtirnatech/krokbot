@@ -183,6 +183,16 @@ export const dbService = {
     stmt.run(id);
   },
 
+  deleteNode(id: string): void {
+    const db = getDb();
+    db.exec('PRAGMA foreign_keys = ON;');
+    const stmt = db.prepare('DELETE FROM nodes WHERE id = ?');
+    stmt.run(id);
+    // Ensure any cascaded records are purged
+    db.prepare('DELETE FROM agents WHERE node_id = ?').run(id);
+    db.prepare('DELETE FROM telemetry WHERE node_id = ?').run(id);
+  },
+
   recordTelemetry(telemetry: { node_id: string; cpu_percent: number; memory_used_gb: number; memory_percent: number; storage_mb: number }): void {
     const db = getDb();
     const stmt = db.prepare(`

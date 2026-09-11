@@ -113,6 +113,26 @@ export const agentClient = {
     return res.json();
   },
 
+  async removeAgent(endpointUrl: string, agentId: string) {
+    const cleanUrl = endpointUrl.replace(/\/+$/, '');
+    try {
+      const res = await fetch(`${cleanUrl}/api/agents/${encodeURIComponent(agentId)}/remove`, {
+        method: 'POST'
+      });
+      if (res.ok) return res.json();
+    } catch {
+      // ignore
+    }
+    const resDel = await fetch(`${cleanUrl}/api/agents/${encodeURIComponent(agentId)}`, {
+      method: 'DELETE'
+    });
+    if (!resDel.ok) {
+      const err = await resDel.text();
+      throw new Error(`Failed to remove agent: ${err}`);
+    }
+    return resDel.json();
+  },
+
   async switchModel(endpointUrl: string, filename: string) {
     const cleanUrl = endpointUrl.replace(/\/+$/, '');
     const res = await fetch(`${cleanUrl}/api/models/${encodeURIComponent(filename)}/activate`, {

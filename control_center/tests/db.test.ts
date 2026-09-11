@@ -76,6 +76,15 @@ describe('C2 Fleet Database Service (dbService)', () => {
       assert.equal(nodes[0].name, 'Alpha Node');
       assert.equal(nodes[1].name, 'Bravo Node');
     });
+
+    it('should delete a node and its attached agents', () => {
+      dbService.upsertNode({ id: 'node-delete-test', name: 'Delete Node Test', ip_address: 'http://10.0.0.9:5150' });
+      dbService.upsertAgent({ id: 'agent-child-1', node_id: 'node-delete-test', name: 'Child Agent', port: 5160 });
+
+      assert.ok(dbService.getNode('node-delete-test'));
+      dbService.deleteNode('node-delete-test');
+      assert.equal(dbService.getNode('node-delete-test'), null);
+    });
   });
 
   describe('Agent Management & Multi-Agent Segregation', () => {

@@ -189,6 +189,42 @@ export default function ControlCenterDashboard() {
     }
   };
 
+  // Permanently Remove Agent
+  const handleDeleteAgent = async (nodeId: string, agentId: string, agentName: string) => {
+    if (!confirm(`Are you sure you want to permanently remove agent "${agentName}" (${agentId}) from container node?`)) return;
+    try {
+      const res = await fetch(`/api/fleet/nodes/${encodeURIComponent(nodeId)}/agents/${encodeURIComponent(agentId)}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Delete agent failed');
+      }
+      await fetchFleet();
+      await fetchAuditLogs();
+    } catch (err: any) {
+      alert(`Delete Agent Error: ${err.message}`);
+    }
+  };
+
+  // Permanently Remove Node from Fleet
+  const handleDeleteNode = async (nodeId: string, nodeName: string) => {
+    if (!confirm(`Are you sure you want to remove edge node "${nodeName}" (${nodeId}) from C2 fleet?`)) return;
+    try {
+      const res = await fetch(`/api/fleet/nodes/${encodeURIComponent(nodeId)}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Delete node failed');
+      }
+      await fetchFleet();
+      await fetchAuditLogs();
+    } catch (err: any) {
+      alert(`Delete Node Error: ${err.message}`);
+    }
+  };
+
   // Open Model Switch Modal
   const openModelModal = async (node: NodeRecord) => {
     setModelModalNode(node);
@@ -415,7 +451,7 @@ export default function ControlCenterDashboard() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2.5">
                         <button
                           onClick={() => openModelModal(node)}
                           className="px-3 py-1.5 rounded text-xs bg-[#131f18] hover:bg-[#1a2b21] border border-[#213529] text-[#ffb000] font-medium transition-colors flex items-center gap-1.5"
@@ -424,9 +460,16 @@ export default function ControlCenterDashboard() {
                         </button>
                         <button
                           onClick={() => openDeployModal(node)}
-                          className="px-3.5 py-1.5 rounded text-xs bg-[#0e271a] hover:bg-[#143524] border border-[#00ff66]/40 text-[#00ff66] font-semibold transition-colors flex items-center gap-1.5"
+                          className="px-3 py-1.5 rounded text-xs bg-[#0e271a] hover:bg-[#143524] border border-[#00ff66]/40 text-[#00ff66] font-semibold transition-colors flex items-center gap-1.5"
                         >
                           <span>+ Deploy Agent in Container</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteNode(node.id, node.name)}
+                          className="px-2.5 py-1.5 rounded text-xs bg-[#241315] hover:bg-[#3d181c] border border-[#ff3344]/30 text-[#ff5566] font-medium transition-colors flex items-center gap-1"
+                          title="Remove node from fleet"
+                        >
+                          <span>🗑️ Remove</span>
                         </button>
                       </div>
                     </div>
@@ -487,8 +530,8 @@ export default function ControlCenterDashboard() {
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-[#a4c5b5] flex items-center gap-2">
                           <span>📦 In-Container Co-Located Agents</span>
-                          <span className="text-[10px] px-2 py-0.2 rounded-full bg-[#16241c] text-[#00ff66] border border-[#233a2d]">
-                            {nodeAgents.length} Running
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#16241c] text-[#00ff66] border border-[#233a2d]">
+                            {nodeAgents.filter(a => a.status === 'running').length} Active / {nodeAgents.length} Total
                           </span>
                         </h4>
                         <span className="text-[11px] text-[#5b7a6b]">
@@ -499,6 +542,7 @@ export default function ControlCenterDashboard() {
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                         {nodeAgents.map((agent) => {
                           const isPrimary = agent.is_primary === 1 || agent.is_primary === true;
+                          const isRunning = agent.status === 'running';
                           return (
                             <div
                               key={agent.id}
@@ -507,20 +551,27 @@ export default function ControlCenterDashboard() {
                               <div className="flex items-start justify-between gap-2">
                                 <div>
                                   <div className="flex items-center gap-1.5">
-                                    <span className="w-2 h-2 rounded-full bg-[#00ff66]"></span>
+                                    <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-[#00ff66] shadow-[0_0_6px_#00ff66]' : 'bg-[#6b7280]'}`}></span>
                                     <span className="text-xs font-bold text-white">{agent.name}</span>
                                   </div>
                                   <span className="text-[10px] text-[#6b8c7c] font-mono block mt-0.5">
                                     ID: {agent.id}
                                   </span>
                                 </div>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                                  isPrimary
-                                    ? 'bg-[#183523] text-[#00ff66] border border-[#00ff66]/40'
-                                    : 'bg-[#222a36] text-[#70a5ff] border border-[#70a5ff]/30'
-                                }`}>
-                                  {isPrimary ? 'PRIMARY' : 'WORKER'}
-                                </span>
+                                <div className="flex items-center gap-1">
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                                    isRunning ? 'text-[#00ff66] bg-[#14281c] border border-[#00ff66]/30' : 'text-[#888] bg-[#1a1e1c] border border-[#333]'
+                                  }`}>
+                                    {agent.status.toUpperCase()}
+                                  </span>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                    isPrimary
+                                      ? 'bg-[#183523] text-[#00ff66] border border-[#00ff66]/40'
+                                      : 'bg-[#222a36] text-[#70a5ff] border border-[#70a5ff]/30'
+                                  }`}>
+                                    {isPrimary ? 'PRIMARY' : 'WORKER'}
+                                  </span>
+                                </div>
                               </div>
 
                               <div className="text-[11px] text-[#5b7a6b] space-y-1">
@@ -543,7 +594,7 @@ export default function ControlCenterDashboard() {
                               </div>
 
                               {/* Agent Actions */}
-                              <div className="pt-2 border-t border-[#18261e] flex items-center justify-between gap-2">
+                              <div className="pt-2 border-t border-[#18261e] flex items-center justify-between gap-1.5">
                                 <button
                                   onClick={() => {
                                     setTargetNode(node.id);
@@ -556,13 +607,23 @@ export default function ControlCenterDashboard() {
                                   ⚡ Command
                                 </button>
 
-                                {!isPrimary && (
+                                {!isPrimary && isRunning && (
                                   <button
                                     onClick={() => handleStopAgent(node.id, agent.id)}
-                                    className="py-1 px-2.5 rounded bg-[#2a1315] hover:bg-[#3d181c] border border-[#ff3344]/30 text-[#ff5566] text-[11px] transition-colors"
+                                    className="py-1 px-2 rounded bg-[#2a1315] hover:bg-[#3d181c] border border-[#ff3344]/30 text-[#ff5566] text-[11px] transition-colors"
                                     title="Stop in-container agent"
                                   >
                                     Stop
+                                  </button>
+                                )}
+
+                                {!isPrimary && (
+                                  <button
+                                    onClick={() => handleDeleteAgent(node.id, agent.id, agent.name)}
+                                    className="py-1 px-2 rounded bg-[#241315] hover:bg-[#3d181c] border border-[#ff3344]/30 text-[#ff5566] text-[11px] font-medium transition-colors"
+                                    title="Permanently remove agent"
+                                  >
+                                    🗑️ Remove
                                   </button>
                                 )}
                               </div>
