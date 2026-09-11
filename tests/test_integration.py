@@ -4,7 +4,7 @@ from unittest.mock import patch
 from krokbot.agent.core import KrokBotAgent
 from krokbot.dashboard.server import export_health_report
 
-@patch("krokbot.agent.ollama_client.OllamaClient.chat")
+@patch("krokbot.agent.llamacpp_client.LlamaCppClient.chat")
 @patch("krokbot.agent.tools.ToolRegistry.query_host_metrics")
 def test_end_to_end_agent_flow(mock_metrics, mock_chat, tmp_path):
     mock_metrics.return_value = {"cpu_percent": 18.0, "memory_percent": 42.0, "os_info": "Windows 11"}

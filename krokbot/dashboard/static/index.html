@@ -3,108 +3,1481 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KrokBot Workstation Dashboard & Terminal</title>
+    <title>KrokBot Dashboard & Llama.cpp Web Manager</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script>
+        (function() {
+            var p = localStorage.getItem('krokbot_workstation_palette') || 'matrix-green';
+            document.documentElement.setAttribute('data-theme', p);
+        })();
+    </script>
 </head>
 <body>
     <div class="dashboard-header">
-        <h1>KrokBot Workstation Health Dashboard</h1>
-        <p>Autonomous AI Agent Diagnostics, Compute Sandbox, Cron Scheduler & Command Terminal</p>
-    </div>
-
-    <div class="card-grid">
-        <div class="card">
-            <h3>CPU Usage</h3>
-            <div id="cpu-val" class="metric-value">--%</div>
+        <div>
+            <h1><span style="color: var(--accent);">KrokBot Workstation Dashboard</span> // SYSTEM CONSOLE</h1>
+            <p>Edge Autonomous Agent Telemetry &bull; Llama.cpp Subsystem &bull; Port 5150</p>
         </div>
-        <div class="card">
-            <h3>Memory Usage</h3>
-            <div id="mem-val" class="metric-value">--%</div>
-        </div>
-        <div class="card">
-            <h3>Agent Status</h3>
-            <div id="agent-status" class="metric-value" style="font-size: 1.5rem; color: #4ade80;">Active</div>
+        <div id="llm-header-status">
+            <span class="status-badge badge-online" id="header-status-badge">
+                <span class="pulse-dot"></span> <span id="header-status-text">LLAMA.CPP: ONLINE</span>
+            </span>
         </div>
     </div>
 
-    <!-- Interactive Chat Terminal Card -->
-    <div class="card" style="margin-bottom: 2rem;">
-        <h2>Interactive Agent Terminal & Chat</h2>
-        <div id="chat-window" class="chat-window">
-            <div class="chat-msg system-msg">
-                <span class="prompt-tag system-tag">krokbot&gt;</span> Ready for task prompts and diagnostic instructions. Type your request below.
+    <!-- Navigation Tabs & Palette Switcher Bar -->
+    <div class="tabs-nav">
+        <div class="tabs-nav-buttons">
+            <button class="tab-btn active" id="tab-btn-agent" onclick="switchTab('agent')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                Agent Console
+            </button>
+            <button class="tab-btn" id="tab-btn-llm" onclick="switchTab('llm')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                Model Manager
+            </button>
+            <button class="tab-btn" id="tab-btn-tools" onclick="switchTab('tools')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                Agent Tools
+            </button>
+        </div>
+
+        <!-- Palette Switcher in Tab Area -->
+        <div class="palette-switcher-wrapper">
+            <button class="palette-btn" id="palette-btn" onclick="togglePaletteMenu(event)" title="Change Telemetry Palette (Matrix Green, Amber, Slate, etc.)" aria-label="Change Color Palette">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/>
+                    <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/>
+                    <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>
+                    <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/>
+                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
+                </svg>
+                <span class="palette-btn-text">Palette: <span id="current-palette-name">Matrix Green</span></span>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+
+            <!-- Dropdown Menu -->
+            <div class="palette-menu" id="palette-menu" style="display: none;">
+                <div class="palette-menu-header">WORKSTATION TELEMETRY PALETTE</div>
+                <div class="palette-options">
+                    <button type="button" class="palette-opt" data-palette="matrix-green" onclick="selectPalette('matrix-green')">
+                        <span class="palette-swatch swatch-matrix-green"></span>
+                        <div class="palette-opt-info">
+                            <div class="palette-opt-title">Matrix Phosphor (Default)</div>
+                            <div class="palette-opt-desc">Pure Black Background & Green Text</div>
+                        </div>
+                        <span class="palette-check" id="check-matrix-green">✓</span>
+                    </button>
+
+                    <button type="button" class="palette-opt" data-palette="amber-crt" onclick="selectPalette('amber-crt')">
+                        <span class="palette-swatch swatch-amber-crt"></span>
+                        <div class="palette-opt-info">
+                            <div class="palette-opt-title">Amber CRT</div>
+                            <div class="palette-opt-desc">Pure Black Background & Amber Text</div>
+                        </div>
+                        <span class="palette-check" id="check-amber-crt">✓</span>
+                    </button>
+
+                    <button type="button" class="palette-opt" data-palette="slate-industrial" onclick="selectPalette('slate-industrial')">
+                        <span class="palette-swatch swatch-slate-industrial"></span>
+                        <div class="palette-opt-info">
+                            <div class="palette-opt-title">Slate Industrial</div>
+                            <div class="palette-opt-desc">Graphite Charcoal & Steel Cyan</div>
+                        </div>
+                        <span class="palette-check" id="check-slate-industrial">✓</span>
+                    </button>
+
+                    <button type="button" class="palette-opt" data-palette="cyber-cyan" onclick="selectPalette('cyber-cyan')">
+                        <span class="palette-swatch swatch-cyber-cyan"></span>
+                        <div class="palette-opt-info">
+                            <div class="palette-opt-title">Cyber Cyan</div>
+                            <div class="palette-opt-desc">Pure Black Background & Electric Cyan</div>
+                        </div>
+                        <span class="palette-check" id="check-cyber-cyan">✓</span>
+                    </button>
+
+                    <button type="button" class="palette-opt" data-palette="monochrome" onclick="selectPalette('monochrome')">
+                        <span class="palette-swatch swatch-monochrome"></span>
+                        <div class="palette-opt-info">
+                            <div class="palette-opt-title">Monochrome Stealth</div>
+                            <div class="palette-opt-desc">Pitch Black & High-Contrast White</div>
+                        </div>
+                        <span class="palette-check" id="check-monochrome">✓</span>
+                    </button>
+                </div>
             </div>
         </div>
-        
-        <form id="chat-form" class="chat-form-container" onsubmit="handleChatSubmit(event)">
-            <span class="prompt-symbol">&gt;</span>
-            <input type="text" id="chat-input" class="chat-input" placeholder="Type a prompt for KrokBot (e.g. 'Check storage and schedule daily audit at 02:00')..." autocomplete="off" required />
-            <button type="submit" id="chat-send-btn" class="btn-send">Send Prompt</button>
-        </form>
     </div>
 
-    <div class="card" style="margin-bottom: 2rem;">
-        <h2>Scheduled Cron Tasks</h2>
-        <div id="schedules-list" class="schedules-container">
-            <p style="color: var(--text-muted);">Loading active schedules...</p>
+    <!-- TAB 1: AGENT CONSOLE -->
+    <div id="pane-agent" class="tab-pane active">
+        <div class="overhead-grid">
+            <!-- Consolidated KrokBot Container Overhead Card -->
+            <div class="card overhead-card">
+                <div class="overhead-header">
+                    <div>
+                        <h3 style="margin: 0; color: var(--text-bright); font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                            KrokBot Service Overhead (Docker Container)
+                        </h3>
+                        <p style="margin: 3px 0 0 0; font-size: 0.82rem; color: var(--text-muted);">
+                            Real-time edge compute footprint of KrokBot service &amp; Llama.cpp processes
+                        </p>
+                    </div>
+                    <span class="overhead-badge" id="container-badge">
+                        <span class="pulse-dot"></span> Container PID 1
+                    </span>
+                </div>
+
+                <div class="overhead-metrics-row">
+                    <!-- CPU Metric -->
+                    <div class="overhead-col">
+                        <div class="overhead-label">Krokbot CPU usage</div>
+                        <div class="overhead-val" id="container-cpu-val">0.0%</div>
+                        <div class="mini-progress-bar">
+                            <div class="mini-progress-fill" id="container-cpu-bar" style="width: 0%;"></div>
+                        </div>
+                        <div class="overhead-subtext" id="container-cpu-sub">% of total system CPU</div>
+                    </div>
+
+                    <!-- Memory Metric -->
+                    <div class="overhead-col">
+                        <div class="overhead-label">Memory Overhead (RAM)</div>
+                        <div class="overhead-val" id="container-mem-val">-- GB</div>
+                        <div class="mini-progress-bar">
+                            <div class="mini-progress-fill mem-fill" id="container-mem-bar" style="width: 0%;"></div>
+                        </div>
+                        <div class="overhead-subtext" id="container-mem-sub">--% of host RAM</div>
+                    </div>
+
+                    <!-- Storage Metric -->
+                    <div class="overhead-col">
+                        <div class="overhead-label">Storage Footprint (Disk)</div>
+                        <div class="overhead-val" id="container-storage-val">-- GB</div>
+                        <div class="mini-progress-bar">
+                            <div class="mini-progress-fill disk-fill" id="container-storage-bar" style="width: 0%;"></div>
+                        </div>
+                        <div class="overhead-subtext" id="container-storage-sub">Models: -- MB | Data: -- MB</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent Operational State Card -->
+            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <h3 style="margin: 0; color: var(--text-bright); font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        Autonomous Agent State
+                    </h3>
+                </div>
+                <div style="margin: 1rem 0;">
+                    <!-- Standardized size: bounded to 1.15rem (smaller than 1.25rem header title) -->
+                    <div id="agent-status" class="metric-value" style="font-size: 1.15rem; color: var(--sys-green); display: flex; align-items: center; gap: 8px;">
+                        <span class="pulse-dot"></span> Active
+                    </div>
+                    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">
+                        Sandbox: <code>/app/data/sandbox_workspace</code>
+                    </div>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--accent); display: flex; align-items: center; gap: 5px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                    Ready for scheduled and scripted tasks
+                </div>
+            </div>
+        </div>
+
+        <!-- Agent Terminal Card (Collapsible) -->
+        <div class="card" id="card-terminal" style="margin-bottom: 1.25rem;">
+            <div class="collapsible-header" onclick="toggleSection('terminal', event)">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="toggle-indicator">▼</span>
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                        Agent Terminal
+                    </h2>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;" onclick="event.stopPropagation();">
+                    <!-- Thinking Process Toggle Switch -->
+                    <div class="thinking-toggle-container" title="Toggle display of background AI thinking & reasoning process in terminal">
+                        <label class="thinking-switch" for="toggle-show-thinking" onclick="event.stopPropagation();">
+                            <input type="checkbox" id="toggle-show-thinking" onchange="handleThinkingToggle(this.checked)" checked />
+                            <span class="thinking-switch-slider"></span>
+                        </label>
+                        <span class="thinking-toggle-label" id="thinking-toggle-label" onclick="document.getElementById('toggle-show-thinking').click();">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04z"/></svg>
+                            Thinking: <strong id="thinking-status-text">ON</strong>
+                        </span>
+                    </div>
+                    <span class="header-meta-tag">[TTY_INTERACTIVE]</span>
+                </div>
+            </div>
+            
+            <div class="collapsible-content">
+                <div id="chat-window" class="chat-window">
+                    <div class="chat-msg system-msg">
+                        <span class="prompt-tag system-tag">krokbot&gt;</span> Ready for task prompts and diagnostic instructions. Powered by local Llama.cpp inference.
+                    </div>
+                </div>
+                
+                <form id="chat-form" class="chat-form-container" onsubmit="handleChatSubmit(event)">
+                    <span class="prompt-symbol">&gt;</span>
+                    <input type="text" id="chat-input" class="chat-input" placeholder="Type a prompt for KrokBot (e.g. 'Check storage and schedule daily audit at 02:00')..." autocomplete="off" required />
+                    <button type="submit" id="chat-send-btn" class="btn-send">Send Prompt</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Schedule Manager Section (Collapsible) -->
+        <div class="card" id="card-schedules" style="margin-bottom: 1.25rem;">
+            <div class="collapsible-header" onclick="toggleSection('schedules', event)">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="toggle-indicator">▼</span>
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                        Schedule Manager
+                    </h2>
+                    <span id="schedules-count-badge" class="cron-badge">0 jobs</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;" onclick="event.stopPropagation();">
+                    <button id="btn-refresh-schedules" onclick="manualRefreshSchedules()" class="btn-action" title="Refresh scheduled jobs">
+                        <svg id="refresh-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        <span>Refresh Tasks</span>
+                    </button>
+                    <button onclick="toggleAddScheduleForm()" class="btn-action" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);">
+                        <span>+ New Job</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="collapsible-content">
+                <!-- Inline Add Job Form (hidden by default) -->
+                <div id="add-schedule-panel" style="display: none; background: var(--bg-input); padding: 1rem; border-radius: 2px; border: 1px solid var(--border-color); margin-bottom: 1rem;">
+                    <h3 style="margin-top: 0; margin-bottom: 0.75rem; font-size: 0.88rem; color: #38bdf8;">Add New Scheduled Cron Task</h3>
+                    <form onsubmit="handleCreateSchedule(event)">
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 2;">
+                                <label for="sched-name">Job Name</label>
+                                <input type="text" id="sched-name" class="form-control" placeholder="e.g. Daily Health Audit" required />
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label for="sched-cron">Cron Expression (5-part)</label>
+                                <input type="text" id="sched-cron" class="form-control" placeholder="e.g. 0 2 * * * or */30 * * * *" required />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="sched-prompt">Task Prompt / Agent Instruction</label>
+                            <input type="text" id="sched-prompt" class="form-control" placeholder="e.g. Check workstation health, storage partitions, and report anomalies" required />
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            <button type="button" onclick="toggleAddScheduleForm()" class="btn-action">Cancel</button>
+                            <button type="submit" class="btn-primary" style="padding: 0.45rem 1rem;">Schedule Job</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Schedules Table / List Container -->
+                <div id="schedules-list" class="schedules-container" style="overflow-x: auto;">
+                    <p style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.82rem;">Loading active schedules...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Script Manager Section (Collapsible) -->
+        <div class="card" id="card-scripts" style="margin-bottom: 1.25rem;">
+            <div class="collapsible-header" onclick="toggleSection('scripts', event)">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="toggle-indicator">▼</span>
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        Script Manager
+                    </h2>
+                    <span id="scripts-count-badge" class="cron-badge">0 scripts</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;" onclick="event.stopPropagation();">
+                    <button id="btn-refresh-scripts" onclick="manualRefreshScripts()" class="btn-action" title="Refresh saved script assets">
+                        <svg id="refresh-scripts-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        <span>Refresh Assets</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="collapsible-content">
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0 0 0.75rem 0;">
+                    Persistent repository of Python automation scripts with paired Markdown documentation (<code>.md</code>) filed in <code>data/scripts/</code>. Review functional purpose, run one-time in the compute sandbox, or delete assets.
+                </p>
+
+                <!-- Scripts Table / Container -->
+                <div id="scripts-list" class="schedules-container" style="overflow-x: auto;">
+                    <p style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.82rem;">Loading saved script assets...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Agent Activity Log Card (Collapsible) -->
+        <div class="card" id="card-activity-log" style="margin-bottom: 1.25rem;">
+            <div class="collapsible-header" onclick="toggleSection('activity-log', event)">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="toggle-indicator">▼</span>
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        Agent Activity Log
+                    </h2>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;" onclick="event.stopPropagation();">
+                    <button type="button" onclick="clearActivityLog()" class="btn-action" title="Clear activity log">
+                        <span>Clear Log</span>
+                    </button>
+                    <span class="header-meta-tag">[STREAM_LIVE]</span>
+                </div>
+            </div>
+
+            <div class="collapsible-content">
+                <div id="log-box" class="log-box">
+                    [SYSTEM] Dashboard loaded. Connected to KrokBot Host Bridge, Cron Scheduler & Llama.cpp Endpoint.
+                </div>
+            </div>
         </div>
     </div>
 
-    <h2>Agent Activity Log</h2>
-    <div id="log-box" class="log-box">
-        [SYSTEM] Dashboard loaded on Port 5150. Connected to KrokBot Host Bridge, Cron Scheduler & Chat Endpoint.
+    <!-- TAB 2: LLAMACPP MODEL MANAGER & PLAYGROUND -->
+    <div id="pane-llm" class="tab-pane">
+        <!-- Server Status Card -->
+        <div class="card-grid">
+            <div class="card">
+                <h3>Server Status</h3>
+                <div id="llm-server-status" style="margin-top: 0.5rem;">
+                    <span class="status-badge badge-online" id="llm-badge"><span class="pulse-dot"></span> Online</span>
+                </div>
+                <div style="margin-top: 0.75rem; color: var(--text-muted); font-size: 0.85rem;" id="llm-base-url">http://127.0.0.1:8081</div>
+            </div>
+            <div class="card">
+                <h3>Active GGUF Model</h3>
+                <div id="llm-active-model" class="metric-value" style="font-size: 1.10rem; color: var(--text-bright); word-break: break-all;">--</div>
+                <div style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.85rem;" id="llm-model-details">ChatML | 2048 Context</div>
+            </div>
+            <div class="card">
+                <h3>Configured Architecture</h3>
+                <div id="llm-config-info" class="metric-value" style="font-size: 1.10rem; color: var(--accent);">All-in-One Docker</div>
+                <div style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">Zero External Dependencies</div>
+            </div>
+        </div>
+
+        <!-- Inference Engine Terminal (Collapsible) -->
+        <div class="card" id="card-playground" style="margin-bottom: 1.25rem;">
+            <div class="collapsible-header" onclick="toggleSection('playground', event)">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="toggle-indicator">▼</span>
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Inference Engine Terminal
+                    </h2>
+                </div>
+                <span class="header-meta-tag">[INFERENCE_BENCHMARK]</span>
+            </div>
+
+            <div class="collapsible-content">
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin: 0 0 1rem 0;">Test the loaded GGUF model directly via OpenAI-compatible <code>/v1/chat/completions</code> without agent tools.</p>
+
+                <form id="playground-form" onsubmit="handlePlaygroundSubmit(event)">
+                    <div class="form-group">
+                        <label for="play-prompt">User Prompt</label>
+                        <textarea id="play-prompt" class="form-control" placeholder="Enter a prompt to send directly to Llama.cpp..." required></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 2;">
+                            <label for="play-system">System Prompt (Optional)</label>
+                            <input type="text" id="play-system" class="form-control" value="You are a helpful, concise AI assistant." />
+                        </div>
+                        <div class="form-group">
+                            <label for="play-temp">Temperature: <span id="temp-display">0.2</span></label>
+                            <input type="range" id="play-temp" min="0.0" max="1.0" step="0.05" value="0.2" class="form-control" oninput="document.getElementById('temp-display').innerText = this.value" />
+                        </div>
+                        <div class="form-group">
+                            <label for="play-tokens">Max Tokens</label>
+                            <input type="number" id="play-tokens" class="form-control" value="512" min="32" max="2048" />
+                        </div>
+                    </div>
+
+                    <button type="submit" id="play-btn" class="btn-primary">Generate Completion</button>
+                    <span id="play-latency" class="latency-badge" style="display: none; margin-left: 1rem;"></span>
+                </form>
+
+                <div id="play-response-container" style="display: none;">
+                    <h3 style="margin-top: 1.25rem; margin-bottom: 0.25rem;">Model Response</h3>
+                    <div id="play-response" class="playground-response"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Model Manager Card (Collapsible) -->
+        <div class="card" id="card-models-library" style="margin-bottom: 1.25rem;">
+            <div class="collapsible-header" onclick="toggleSection('models-library', event)">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="toggle-indicator">▼</span>
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                        Model Manager
+                    </h2>
+                    <span id="models-count-badge" class="cron-badge">0 models</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;" onclick="event.stopPropagation();">
+                    <button id="btn-refresh-models" onclick="fetchModels()" class="btn-action" title="Refresh local models from disk">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        <span>Refresh Models</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="collapsible-content">
+                <div style="overflow-x: auto;">
+                    <table class="data-table" id="models-table">
+                        <thead>
+                            <tr>
+                                <th>Model Filename</th>
+                                <th>Size</th>
+                                <th>Last Modified</th>
+                                <th>Status</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="models-table-body">
+                            <tr><td colspan="5" style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.82rem;">Loading available models...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Model Download (Collapsible) -->
+        <div class="card" id="card-model-download" style="margin-bottom: 1.25rem;">
+            <div class="collapsible-header" onclick="toggleSection('model-download', event)">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="toggle-indicator">▼</span>
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Model Download
+                    </h2>
+                </div>
+                <span class="header-meta-tag">[HF_MODEL_PULL]</span>
+            </div>
+
+            <div class="collapsible-content">
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin: 0 0 1rem 0;">Pull down any quantized GGUF model directly from Hugging Face into <code>./models/</code> for non-interactive or UI-driven deployment.</p>
+
+                <form id="download-form" onsubmit="handleModelDownload(event)">
+                    <div class="form-group">
+                        <label for="catalog-select">Select From Curated Catalog</label>
+                        <select id="catalog-select" class="form-control" onchange="handleCatalogSelect()">
+                            <option value="">-- Choose a pre-configured model or enter custom URL below --</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 2;">
+                            <label for="download-url">Model Download URL (HuggingFace direct .gguf link)</label>
+                            <input type="url" id="download-url" class="form-control" placeholder="https://huggingface.co/.../resolve/main/model.gguf" required />
+                        </div>
+                        <div class="form-group">
+                            <label for="download-filename">Target Filename</label>
+                            <input type="text" id="download-filename" class="form-control" placeholder="model.gguf" required />
+                        </div>
+                    </div>
+
+                    <button type="submit" id="download-btn" class="btn-primary">Pull Model to Storage</button>
+                </form>
+
+                <div id="download-progress-box" style="display: none; margin-top: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted);">
+                        <span id="dl-filename-label">Downloading model...</span>
+                        <span id="dl-speed-label">0 MB/s</span>
+                    </div>
+                    <div class="progress-container">
+                        <div id="dl-progress-fill" class="progress-fill"></div>
+                        <div id="dl-progress-text" class="progress-label">0%</div>
+                    </div>
+                    <div id="dl-status-msg" style="font-size: 0.85rem; margin-top: 0.35rem; color: #38bdf8;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: AGENT TOOLS GOVERNANCE -->
+    <div id="pane-tools" class="tab-pane">
+        <!-- Tool Policy Manager (Collapsible) -->
+        <div class="card" id="card-tools-governance" style="margin-bottom: 1.25rem;">
+            <div class="collapsible-header" onclick="toggleSection('tools-governance', event)">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="toggle-indicator">▼</span>
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                        Tool Policy Manager
+                    </h2>
+                    <span id="tools-count-badge" class="cron-badge">-- active</span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;" onclick="event.stopPropagation();">
+                    <button type="button" class="btn-action" onclick="fetchToolsPolicy(true)" title="Refresh tools policy from disk">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        <span>Reload</span>
+                    </button>
+                    <button type="button" class="btn-action" onclick="resetToolsToDefault()" title="Reset all tools to factory defaults" style="color: var(--sys-amber); border-color: rgba(184, 230, 0, 0.4);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
+                        <span>Factory Defaults</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="collapsible-content">
+                <p style="color: var(--text-muted); font-size: 0.86rem; margin: 0.5rem 0 1rem 0; line-height: 1.45;">
+                    Configure the tools and hardware reach boundaries available to the KrokBot autonomous agent. When a tool is disabled via checkbox, the agent is <strong>strictly blocked</strong> at runtime with a security governance rejection. This configuration is stored persistently in <code>data/config/agent_tools.json</code> and can be reviewed or altered remotely by a central management system via the REST API.
+                </p>
+
+                <div class="tools-summary-bar">
+                    <div class="tools-meta-item">
+                        <span class="tools-meta-label">Enabled Capabilities</span>
+                        <span class="tools-meta-val" id="tools-enabled-count">-- / 5 Active</span>
+                    </div>
+                    <div class="tools-meta-item">
+                        <span class="tools-meta-label">Governance Config Path</span>
+                        <span class="tools-meta-val" style="color: var(--text-main);">data/config/agent_tools.json</span>
+                    </div>
+                    <div class="tools-meta-item">
+                        <span class="tools-meta-label">Policy Version</span>
+                        <span class="tools-meta-val" id="tools-policy-version">1.0</span>
+                    </div>
+                    <div class="tools-meta-item">
+                        <span class="tools-meta-label">Last Policy Modification</span>
+                        <span class="tools-meta-val" id="tools-updated-at">--</span>
+                    </div>
+                    <div class="tools-meta-item">
+                        <span class="tools-meta-label">Modified By</span>
+                        <span class="tools-meta-val" id="tools-updated-by" style="color: var(--accent);">--</span>
+                    </div>
+                </div>
+
+                <div id="tools-notification" style="display: none; padding: 0.6rem 1rem; border-radius: 2px; font-family: var(--font-mono); font-size: 0.82rem; margin-bottom: 1rem;"></div>
+
+                <!-- Main Tools Table -->
+                <div style="overflow-x: auto;">
+                    <table class="data-table" id="tools-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 55px; text-align: center;">Enable</th>
+                                <th style="width: 220px;">Tool / Capability</th>
+                                <th style="width: 170px;">Execution Scope</th>
+                                <th>Description &amp; Hardware Reach Boundary</th>
+                                <th style="width: 100px; text-align: center;">Risk Level</th>
+                                <th style="width: 120px; text-align: center;">Runtime Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tools-table-body">
+                            <tr><td colspan="6" style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.82rem; text-align: center;">Loading agent tools configuration...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Control & REST API Reference Card (Collapsible) -->
+        <div class="card" id="card-api-control" style="margin-bottom: 1.25rem;">
+            <div class="collapsible-header" onclick="toggleSection('api-control', event)">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="toggle-indicator">▼</span>
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+                        API Control
+                    </h2>
+                </div>
+                <span class="header-meta-tag">[CENTRAL_C2_AUTOMATION]</span>
+            </div>
+
+            <div class="collapsible-content">
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">
+                    Centralized command &amp; control systems can audit or remotely reconfigure tool access policies across deployed agent nodes via the following standardized endpoints:
+                </p>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; margin-bottom: 1.25rem;">
+                    <div class="c2-api-snippet">
+                        <div style="color: var(--sys-green); font-weight: 700; margin-bottom: 4px;">GET /api/v1/tools</div>
+                        <div style="color: var(--text-muted);">Returns full tools policy JSON, timestamp, and audit metadata. Available on both Dashboard (:5150) and Host Bridge (:8990).</div>
+                    </div>
+                    <div class="c2-api-snippet">
+                        <div style="color: var(--sys-cyan); font-weight: 700; margin-bottom: 4px;">PUT /api/v1/tools</div>
+                        <div style="color: var(--text-muted);">Applies batch tool policy updates from centralized C2 management servers. Persists atomically to disk.</div>
+                    </div>
+                    <div class="c2-api-snippet">
+                        <div style="color: var(--sys-amber); font-weight: 700; margin-bottom: 4px;">POST /api/v1/tools/{id}/toggle</div>
+                        <div style="color: var(--text-muted);">Instantly activates or locks down a specific capability (e.g. <code>os_bridge</code> or <code>system_cli</code>).</div>
+                    </div>
+                    <div class="c2-api-snippet">
+                        <div style="color: var(--sys-red); font-weight: 700; margin-bottom: 4px;">POST /api/v1/system/cli</div>
+                        <div style="color: var(--text-muted);">Runs commands on underlying host OS CLI. Returns HTTP 403 Security Governance Error if <code>system_cli</code> is disabled.</div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-bright); font-weight: 600;">Live Configuration File (data/config/agent_tools.json):</span>
+                        <button type="button" class="btn-action" onclick="saveRawToolsPolicy()">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                            Save Policy JSON
+                        </button>
+                    </div>
+                    <textarea id="tools-raw-json" class="c2-raw-editor" spellcheck="false"></textarea>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
+        let catalogData = {};
+        let activeTab = 'agent';
+
+        function switchTab(tab) {
+            activeTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+
+            if (tab === 'agent') {
+                document.getElementById('tab-btn-agent').classList.add('active');
+                document.getElementById('pane-agent').classList.add('active');
+            } else if (tab === 'llm') {
+                document.getElementById('tab-btn-llm').classList.add('active');
+                document.getElementById('pane-llm').classList.add('active');
+                fetchLlamaStatus();
+                fetchModels();
+            } else if (tab === 'tools') {
+                document.getElementById('tab-btn-tools').classList.add('active');
+                document.getElementById('pane-tools').classList.add('active');
+                fetchToolsPolicy();
+            }
+        }
+
+        // =====================================================================
+        // Agent Tools & Governance Policy Matrix
+        // =====================================================================
+        let currentToolsConfig = null;
+
+        async function fetchToolsPolicy(notify = false) {
+            try {
+                const res = await fetch('/api/tools');
+                const data = await res.json();
+                currentToolsConfig = data;
+
+                renderToolsTable(data);
+                updateToolsSummary(data);
+
+                const rawEditor = document.getElementById('tools-raw-json');
+                if (rawEditor) {
+                    rawEditor.value = JSON.stringify(data, null, 2);
+                }
+
+                if (notify) {
+                    showToolsNotification("Tools policy synchronized from data/config/agent_tools.json", "success");
+                }
+            } catch (err) {
+                console.error("Failed to load tools policy:", err);
+                showToolsNotification("Error fetching tools policy: " + err.message, "error");
+            }
+        }
+
+        function updateToolsSummary(config) {
+            const tools = config.tools || {};
+            const toolKeys = Object.keys(tools);
+            const enabledCount = toolKeys.filter(k => tools[k].enabled).length;
+
+            const countEl = document.getElementById('tools-enabled-count');
+            if (countEl) countEl.innerText = `${enabledCount} of ${toolKeys.length} Active`;
+
+            const countBadge = document.getElementById('tools-count-badge');
+            if (countBadge) countBadge.innerText = `${enabledCount} of ${toolKeys.length} active`;
+
+            const verEl = document.getElementById('tools-policy-version');
+            if (verEl) verEl.innerText = config.version || "1.0";
+
+            const timeEl = document.getElementById('tools-updated-at');
+            if (timeEl) {
+                const rawTime = config.updated_at || "";
+                timeEl.innerText = rawTime ? new Date(rawTime).toLocaleTimeString() + " " + new Date(rawTime).toLocaleDateString() : "--";
+            }
+
+            const byEl = document.getElementById('tools-updated-by');
+            if (byEl) byEl.innerText = config.updated_by || "system";
+        }
+
+        function renderToolsTable(config) {
+            const tbody = document.getElementById('tools-table-body');
+            if (!tbody) return;
+
+            const tools = config.tools || {};
+            const keys = Object.keys(tools);
+
+            if (keys.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No tool policies defined.</td></tr>';
+                return;
+            }
+
+            let html = '';
+            keys.forEach(key => {
+                const tool = tools[key];
+                const isEnabled = Boolean(tool.enabled);
+                const danger = (tool.danger_level || 'medium').toLowerCase();
+                const dangerClass = danger === 'high' ? 'danger-high' : (danger === 'low' ? 'danger-low' : 'danger-medium');
+
+                const statusBadge = isEnabled
+                    ? `<span class="tool-badge-enabled"><span class="pulse-dot"></span> ENABLED</span>`
+                    : `<span class="tool-badge-disabled">BLOCKED</span>`;
+
+                const rowClass = isEnabled ? 'tool-row-enabled' : 'tool-row-disabled';
+
+                html += `
+                    <tr class="${rowClass}">
+                        <td style="text-align: center;">
+                            <label class="tool-checkbox-wrap" title="Enable/disable ${tool.name}">
+                                <input type="checkbox" class="tool-checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleToolStatus('${tool.id}', this.checked)" />
+                            </label>
+                        </td>
+                        <td>
+                            <div style="font-weight: 700; color: var(--text-bright); font-size: 0.88rem;">${tool.name}</div>
+                            <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-dim); margin-top: 2px;"><code>${tool.id}</code></div>
+                        </td>
+                        <td>
+                            <span class="scope-pill">${tool.governance_scope || 'container_sandbox'}</span>
+                            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 2px;">${tool.category || ''}</div>
+                        </td>
+                        <td style="font-size: 0.82rem; color: var(--text-main); line-height: 1.4;">
+                            ${tool.description}
+                        </td>
+                        <td style="text-align: center;">
+                            <span class="danger-pill ${dangerClass}">${tool.danger_level || 'medium'}</span>
+                        </td>
+                        <td style="text-align: center;">
+                            ${statusBadge}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        async function toggleToolStatus(toolId, isChecked) {
+            try {
+                const res = await fetch(`/api/tools/${toolId}/toggle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: isChecked })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToolsNotification(`Tool '${toolId}' is now ${isChecked ? 'ENABLED' : 'DISABLED & BLOCKED'}. Policy saved.`, isChecked ? 'success' : 'warning');
+                    await fetchToolsPolicy();
+                } else {
+                    showToolsNotification(`Failed to toggle tool '${toolId}': ${data.detail || 'Unknown error'}`, 'error');
+                    await fetchToolsPolicy();
+                }
+            } catch (err) {
+                console.error("Toggle error:", err);
+                showToolsNotification("Network error toggling tool: " + err.message, "error");
+                await fetchToolsPolicy();
+            }
+        }
+
+        async function resetToolsToDefault() {
+            if (!confirm("Reset all agent tools to default security governance policy?")) return;
+            try {
+                const res = await fetch('/api/tools/reset', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToolsNotification("Tools configuration reset to factory defaults.", "success");
+                    await fetchToolsPolicy();
+                }
+            } catch (err) {
+                showToolsNotification("Error resetting tools: " + err.message, "error");
+            }
+        }
+
+        async function saveRawToolsPolicy() {
+            const editor = document.getElementById('tools-raw-json');
+            if (!editor) return;
+            try {
+                const parsed = JSON.parse(editor.value);
+                const res = await fetch('/api/v1/tools', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(parsed)
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToolsNotification("Configuration updated and written to disk successfully.", "success");
+                    await fetchToolsPolicy();
+                } else {
+                    showToolsNotification("Failed to save configuration: " + (data.detail || 'Error'), "error");
+                }
+            } catch (err) {
+                showToolsNotification("Invalid JSON format: " + err.message, "error");
+            }
+        }
+
+        function showToolsNotification(msg, type = "success") {
+            const el = document.getElementById('tools-notification');
+            if (!el) return;
+            el.style.display = 'block';
+            if (type === 'success') {
+                el.style.background = 'var(--sys-green-dim)';
+                el.style.color = 'var(--sys-green)';
+                el.style.border = '1px solid rgba(0, 255, 102, 0.3)';
+            } else if (type === 'warning') {
+                el.style.background = 'var(--sys-amber-dim)';
+                el.style.color = 'var(--sys-amber)';
+                el.style.border = '1px solid rgba(184, 230, 0, 0.4)';
+            } else {
+                el.style.background = 'var(--sys-red-dim)';
+                el.style.color = 'var(--sys-red)';
+                el.style.border = '1px solid rgba(255, 51, 68, 0.4)';
+            }
+            el.innerText = `[GOVERNANCE] ${msg}`;
+            setTimeout(() => {
+                if (el) el.style.display = 'none';
+            }, 5000);
+        }
+
+
         async function fetchMetrics() {
             try {
                 const res = await fetch('/api/metrics');
                 const data = await res.json();
-                if (data.cpu_percent !== undefined) {
-                    document.getElementById('cpu-val').innerText = data.cpu_percent + '%';
-                    document.getElementById('mem-val').innerText = data.memory_percent + '%';
+                const c = data.container || {};
+
+                // 1. Krokbot CPU usage (% of total system CPU)
+                const cpu = c.cpu_percent !== undefined ? c.cpu_percent : (data.cpu_percent || 0.0);
+                const cpuElem = document.getElementById('container-cpu-val');
+                const cpuBar = document.getElementById('container-cpu-bar');
+                const cpuSub = document.getElementById('container-cpu-sub');
+                if (cpuElem) cpuElem.innerText = Number(cpu).toFixed(1) + '%';
+                if (cpuBar) cpuBar.style.width = Math.min(100, Math.max(0, Number(cpu))) + '%';
+                if (cpuSub) {
+                    const procCount = c.process_count || 1;
+                    cpuSub.innerText = `% of total system CPU (${procCount} proc)`;
+                }
+
+                // 2. Container Memory (RAM)
+                const memGb = c.memory_used_gb !== undefined ? c.memory_used_gb : 0.0;
+                const memMb = c.memory_used_mb !== undefined ? c.memory_used_mb : 0;
+                const memPct = c.memory_percent !== undefined ? c.memory_percent : (data.memory_percent || 0.0);
+                const memElem = document.getElementById('container-mem-val');
+                const memBar = document.getElementById('container-mem-bar');
+                const memSub = document.getElementById('container-mem-sub');
+                if (memElem) memElem.innerText = (memGb >= 1.0 ? `${memGb} GB` : `${memMb} MB`);
+                if (memBar) memBar.style.width = Math.min(100, Math.max(0, Number(memPct))) + '%';
+                if (memSub) memSub.innerText = `${memPct}% of host RAM (${memMb} MB)`;
+
+                // 3. Container Storage Footprint
+                const storageGb = c.storage_service_gb !== undefined ? c.storage_service_gb : 0.0;
+                const storageMb = c.storage_service_mb !== undefined ? c.storage_service_mb : 0;
+                const modelsMb = c.storage_models_mb !== undefined ? c.storage_models_mb : 0;
+                const dataMb = c.storage_data_mb !== undefined ? c.storage_data_mb : 0;
+                const diskPct = c.disk_percent !== undefined ? c.disk_percent : 0.0;
+                const storageElem = document.getElementById('container-storage-val');
+                const storageBar = document.getElementById('container-storage-bar');
+                const storageSub = document.getElementById('container-storage-sub');
+                if (storageElem) storageElem.innerText = (storageGb >= 1.0 ? `${storageGb} GB` : `${storageMb} MB`);
+                if (storageBar) storageBar.style.width = Math.min(100, Math.max(0, Number(diskPct))) + '%';
+                if (storageSub) storageSub.innerText = `Models: ${modelsMb} MB | Data: ${dataMb} MB`;
+
+                // Badge indication
+                const badge = document.getElementById('container-badge');
+                if (badge && c.is_docker) {
+                    badge.innerHTML = '<span class="pulse-dot"></span> Docker Container';
                 }
             } catch (e) {
-                console.error("Metrics fetch error", e);
+                console.error("Metrics error", e);
             }
         }
 
-        async function fetchSchedules() {
+        async function fetchSchedules(forceRefresh = false) {
             try {
-                const res = await fetch('/api/schedules');
-                const schedules = await res.json();
+                const url = forceRefresh ? '/api/schedules/refresh' : '/api/schedules';
+                const res = await fetch(url);
+                const data = await res.json();
+                const schedules = Array.isArray(data) ? data : (data.schedules || []);
                 const container = document.getElementById('schedules-list');
+                const badge = document.getElementById('schedules-count-badge');
+                if (badge) badge.innerText = `${schedules.length} ${schedules.length === 1 ? 'job' : 'jobs'}`;
+
                 if (schedules.length === 0) {
-                    container.innerHTML = '<p style="color: var(--text-muted);">No persistent cron schedules configured.</p>';
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 2rem 1rem; color: var(--text-muted);">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 0.5rem; opacity: 0.6;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <p style="margin: 0;">No scheduled cron jobs configured.</p>
+                            <small>Click <strong>+ New Job</strong> above or tell KrokBot in the chat terminal to set a schedule.</small>
+                        </div>
+                    `;
                     return;
                 }
-                let html = '<ul class="schedule-ul">';
+
+                let html = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Task & Instruction</th>
+                                <th>Schedule</th>
+                                <th>Next Execution</th>
+                                <th>Last Run & Status</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
                 schedules.forEach(item => {
+                    const nextRun = item.next_run || '<span style="color: var(--text-muted);">Pending</span>';
+                    const lastRun = item.last_run || '<span style="color: var(--text-muted);">Never</span>';
+
+                    let statusBadge = '';
+                    if (item.last_status === 'success') {
+                        statusBadge = `<span class="status-pill success" title="Latest execution completed successfully">● Exit 0 (${item.last_duration_ms || 0}ms)</span>`;
+                    } else if (item.last_status === 'failure') {
+                        statusBadge = `<span class="status-pill failure" title="Latest execution failed with error">● Exit ${item.last_exit_code || 1}</span>`;
+                    } else {
+                        statusBadge = `<span class="status-pill pending">● Pending</span>`;
+                    }
+
                     html += `
-                        <li class="schedule-item">
-                            <div>
-                                <strong>${item.name}</strong> <code class="cron-badge">${item.cron_expression}</code><br/>
-                                <small style="color: var(--text-muted);">${item.prompt}</small>
-                            </div>
-                            <button onclick="deleteSchedule('${item.id}')" class="btn-delete">Remove</button>
-                        </li>
+                        <tr>
+                            <td>
+                                <div>
+                                    <strong>${escapeHtml(item.name)}</strong> 
+                                    <span class="id-badge">${escapeHtml(item.id)}</span>
+                                    ${item.target_script ? `<code style="font-size: 0.78rem; color: #a855f7; margin-left: 4px;">./${escapeHtml(item.target_script)}</code>` : ''}
+                                </div>
+                                <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">
+                                    ${escapeHtml(item.prompt)}
+                                </div>
+                            </td>
+                            <td><code class="cron-badge">${escapeHtml(item.cron_expression)}</code></td>
+                            <td><small style="color: #38bdf8;">${nextRun}</small></td>
+                            <td>
+                                <div><small style="color: var(--text-muted);">${lastRun}</small></div>
+                                <div style="margin-top: 3px;">${statusBadge}</div>
+                            </td>
+                            <td style="text-align: right;">
+                                <div style="display: inline-flex; gap: 6px;">
+                                    <button onclick="runScheduleNow('${item.id}', '${escapeHtml(item.name)}')" class="btn-run" title="Execute task immediately in compute sandbox">▶ Run</button>
+                                    <button onclick="openJobAuditModal('${item.id}', '${escapeHtml(item.name)}')" class="btn-logs" title="View execution history & audit logs">📋 Logs</button>
+                                    <button onclick="deleteSchedule('${item.id}', '${escapeHtml(item.name)}')" class="btn-delete-job" title="Delete scheduled task">✕ Delete</button>
+                                </div>
+                            </td>
+                        </tr>
                     `;
                 });
-                html += '</ul>';
+
+                html += '</tbody></table>';
                 container.innerHTML = html;
             } catch (e) {
-                console.error("Schedules fetch error", e);
+                console.error("Schedules error", e);
             }
         }
 
-        async function deleteSchedule(id) {
-            if (confirm("Remove schedule " + id + "?")) {
-                await fetch('/api/schedules/' + id, { method: 'DELETE' });
-                fetchSchedules();
+        async function manualRefreshSchedules() {
+            const btn = document.getElementById('btn-refresh-schedules');
+            btn.classList.add('spinning');
+            await fetchSchedules(true);
+            setTimeout(() => {
+                btn.classList.remove('spinning');
+            }, 500);
+        }
+
+        function toggleAddScheduleForm() {
+            const panel = document.getElementById('add-schedule-panel');
+            if (panel.style.display === 'none' || !panel.style.display) {
+                panel.style.display = 'block';
+                document.getElementById('sched-name').focus();
+            } else {
+                panel.style.display = 'none';
             }
         }
 
-        function appendChatMessage(sender, text, sandboxOutput) {
+        async function handleCreateSchedule(e) {
+            e.preventDefault();
+            const name = document.getElementById('sched-name').value.trim();
+            const cron = document.getElementById('sched-cron').value.trim();
+            const prompt = document.getElementById('sched-prompt').value.trim();
+            if (!name || !cron || !prompt) return;
+
+            try {
+                const res = await fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, cron_expression: cron, prompt })
+                });
+                if (res.ok) {
+                    toggleAddScheduleForm();
+                    document.getElementById('sched-name').value = '';
+                    document.getElementById('sched-cron').value = '';
+                    document.getElementById('sched-prompt').value = '';
+                    await fetchSchedules(true);
+                } else {
+                    const err = await res.json();
+                    await showCustomAlert("Schedule Creation Failed", "Error creating schedule: " + (err.detail || JSON.stringify(err)), "warning");
+                }
+            } catch (err) {
+                await showCustomAlert("Request Failed", "Could not connect to KrokBot API: " + err, "danger");
+            }
+        }
+
+        async function deleteSchedule(id, name) {
+            const confirmed = await showCustomConfirm({
+                title: "Delete Scheduled Task",
+                message: `Are you sure you want to delete the scheduled job <strong>${escapeHtml(name || id)}</strong> (<code>${escapeHtml(id)}</code>)? This action cannot be undone.`,
+                confirmText: "Delete Task",
+                cancelText: "Cancel",
+                type: "danger"
+            });
+
+            if (confirmed) {
+                try {
+                    const res = await fetch('/api/schedules/' + id, { method: 'DELETE' });
+                    if (res.ok) {
+                        await fetchSchedules(true);
+                    } else {
+                        const err = await res.json();
+                        await showCustomAlert("Deletion Failed", "Failed to delete schedule: " + (err.detail || JSON.stringify(err)), "danger");
+                    }
+                } catch (err) {
+                    await showCustomAlert("Error", "Error deleting schedule: " + err, "danger");
+                }
+            }
+        }
+
+        async function runScheduleNow(id, name) {
+            const confirmed = await showCustomConfirm({
+                title: "Trigger Immediate Execution",
+                message: `Trigger immediate execution of task <strong>${escapeHtml(name || id)}</strong> (<code>${escapeHtml(id)}</code>) right now in the compute sandbox?`,
+                confirmText: "Run Task Now",
+                cancelText: "Cancel",
+                type: "primary"
+            });
+
+            if (!confirmed) return;
+
+            openLiveExecutionModal(name, id);
+            appendChatMessage('system', `Manual trigger initiated for job: ${name || id} (${id})...`);
+
+            try {
+                const res = await fetch(`/api/schedules/${id}/run`, { method: 'POST' });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    const exec = data.execution || {};
+                    updateLiveExecutionModal(exec, name);
+                    appendChatMessage('krokbot', `Executed scheduled task "${name}": Status ${exec.status || 'success'} (Exit ${exec.exit_code || 0}) in ${exec.duration_ms || 0}ms.`);
+                    await fetchSchedules(true);
+                } else {
+                    renderLiveExecutionError(data.detail || JSON.stringify(data));
+                    appendChatMessage('system', `Error running task ${id}: ${data.detail || JSON.stringify(data)}`);
+                }
+            } catch (err) {
+                renderLiveExecutionError(err);
+                appendChatMessage('system', `Execution request error: ${err}`);
+            }
+        }
+
+        let activeTerminalScriptName = null;
+        let scriptTerminalTimer = null;
+        let scriptTerminalStartTime = 0;
+        let currentEventSource = null;
+
+        function clearTerminalScreen() {
+            const streamBox = document.getElementById('terminal-live-stream');
+            if (streamBox) streamBox.innerHTML = '';
+            const stdoutBox = document.getElementById('exec-console-stdout');
+            if (stdoutBox && !streamBox) stdoutBox.innerHTML = '';
+        }
+
+        function formatTerminalDuration(ms) {
+            if (ms < 1000) return `${Math.round(ms)} ms`;
+            return `${(ms / 1000).toFixed(2)} s`;
+        }
+
+        function rerunCurrentScriptTerminal() {
+            if (activeTerminalScriptName) {
+                startScriptTerminalSession(activeTerminalScriptName);
+            }
+        }
+
+        function closeLiveExecutionModal() {
+            if (currentEventSource) {
+                currentEventSource.close();
+                currentEventSource = null;
+            }
+            if (scriptTerminalTimer) {
+                clearInterval(scriptTerminalTimer);
+                scriptTerminalTimer = null;
+            }
+            const overlay = document.getElementById('exec-modal-overlay');
+            if (overlay) overlay.classList.remove('open');
+        }
+
+        function openLiveExecutionModal(jobName, jobId) {
+            const overlay = document.getElementById('exec-modal-overlay');
+            const rerunBtn = document.getElementById('exec-rerun-btn');
+            if (rerunBtn) rerunBtn.style.display = 'none';
+
+            document.getElementById('exec-modal-title').innerText = `Task Execution: ${jobName}`;
+            document.getElementById('exec-modal-status-badge').innerHTML = '<span class="status-pill pending"><span class="pulse-dot"></span> Executing in MarinaBox Sandbox...</span>';
+            document.getElementById('exec-modal-duration').innerText = 'Running...';
+            document.getElementById('exec-modal-trigger').innerText = 'Manual (Web UI)';
+            document.getElementById('exec-modal-sha256').innerText = 'Computing...';
+            document.getElementById('exec-modal-sha256').title = 'Cryptographic SHA-256 script verification';
+            
+            const stdoutBox = document.getElementById('exec-console-stdout');
+            stdoutBox.innerHTML = `
+                <div class="terminal-prompt-line">
+                    <span class="t-user">krokbot@marinabox</span><span class="t-sep">:</span><span class="t-path">~/scheduler</span><span class="t-dollar">$</span> <span class="t-cmd">exec ${escapeHtml(jobName)}</span>
+                </div>
+                <div class="stdout-text">[MARINABOX COMPUTE SANDBOX] Initiating task execution...\nCapturing live telemetry and terminal stdout...</div>
+                <div id="terminal-cursor-row"><span class="terminal-cursor">█</span></div>
+            `;
+            document.getElementById('exec-console-stderr').style.display = 'none';
+            document.getElementById('exec-console-stderr').innerText = '';
+            overlay.classList.add('open');
+        }
+
+        function updateLiveExecutionModal(exec, jobName) {
+            const isSuccess = exec.exit_code === 0;
+            const statusClass = isSuccess ? 'success' : 'failure';
+            document.getElementById('exec-modal-title').innerText = `Execution Complete: ${jobName}`;
+            document.getElementById('exec-modal-status-badge').innerHTML = `<span class="status-pill ${statusClass}">Exit Code ${exec.exit_code} (${(exec.status || 'DONE').toUpperCase()})</span>`;
+            document.getElementById('exec-modal-duration').innerText = `${exec.duration_ms || 0} ms`;
+            document.getElementById('exec-modal-trigger').innerText = `${exec.trigger_type || 'manual'} (${exec.trigger_source || 'web_ui'})`;
+            
+            const hash = exec.script_sha256 ? exec.script_sha256.substring(0, 16) + '...' : 'Inline / None';
+            document.getElementById('exec-modal-sha256').innerText = hash;
+            document.getElementById('exec-modal-sha256').title = `Full SHA-256: ${exec.script_sha256 || 'N/A'}`;
+
+            const stdoutBox = document.getElementById('exec-console-stdout');
+            stdoutBox.innerHTML = `
+                <div class="terminal-prompt-line">
+                    <span class="t-user">krokbot@marinabox</span><span class="t-sep">:</span><span class="t-path">~/scheduler</span><span class="t-dollar">$</span> <span class="t-cmd">exec ${escapeHtml(jobName)}</span>
+                </div>
+                <div class="stdout-text">${escapeHtml(exec.stdout || '(No stdout output recorded)')}</div>
+                <div class="terminal-footer-line">[Process completed with exit code ${exec.exit_code} in ${exec.duration_ms || 0} ms]</div>
+                <div class="terminal-prompt-line" style="margin-top: 4px;">
+                    <span class="t-user">krokbot@marinabox</span><span class="t-sep">:</span><span class="t-path">~/scheduler</span><span class="t-dollar">$</span> <span class="terminal-cursor static">█</span>
+                </div>
+            `;
+
+            const stderrBox = document.getElementById('exec-console-stderr');
+            if (exec.stderr) {
+                stderrBox.style.display = 'block';
+                stderrBox.innerText = `[STDERR]:\n${exec.stderr}`;
+            } else {
+                stderrBox.style.display = 'none';
+            }
+        }
+
+        function renderLiveExecutionError(errText) {
+            document.getElementById('exec-modal-status-badge').innerHTML = '<span class="status-pill failure">Execution Failed</span>';
+            document.getElementById('exec-console-stdout').innerHTML = `<div class="stderr-text">[EXECUTION REQUEST ERROR]:\n${escapeHtml(errText)}</div>`;
+        }
+
+        function copyExecutionConsole() {
+            const streamBox = document.getElementById('terminal-live-stream');
+            let text = '';
+            if (streamBox && streamBox.innerText.trim()) {
+                text = streamBox.innerText;
+            } else {
+                const stdout = document.getElementById('exec-console-stdout').innerText;
+                const stderr = document.getElementById('exec-console-stderr').innerText;
+                text = stderr ? `${stdout}\n\n${stderr}` : stdout;
+            }
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('exec-copy-btn');
+                if (btn) {
+                    btn.innerText = 'Copied!';
+                    setTimeout(() => { btn.innerText = 'Copy Output'; }, 1500);
+                }
+            });
+        }
+
+        async function startScriptTerminalSession(name) {
+            activeTerminalScriptName = name;
+            const overlay = document.getElementById('exec-modal-overlay');
+            const titleEl = document.getElementById('exec-modal-title');
+            const statusBadge = document.getElementById('exec-modal-status-badge');
+            const durationEl = document.getElementById('exec-modal-duration');
+            const triggerEl = document.getElementById('exec-modal-trigger');
+            const shaEl = document.getElementById('exec-modal-sha256');
+            const rerunBtn = document.getElementById('exec-rerun-btn');
+            const liveBadge = document.getElementById('terminal-live-badge');
+            const sessionTitle = document.getElementById('terminal-session-title');
+            const stdoutBox = document.getElementById('exec-console-stdout');
+            const stderrBox = document.getElementById('exec-console-stderr');
+
+            if (sessionTitle) sessionTitle.innerText = `krokbot@marinabox:~/sandbox$ python3 -u ${name}`;
+            titleEl.innerText = `Terminal: python3 -u ${name}`;
+            statusBadge.innerHTML = '<span class="status-pill pending"><span class="pulse-dot"></span> RUNNING</span>';
+            durationEl.innerText = '0 ms';
+            triggerEl.innerText = 'krokbot@marinabox-sandbox';
+            shaEl.innerText = 'Verifying...';
+            shaEl.title = 'Cryptographic SHA-256';
+
+            if (rerunBtn) {
+                rerunBtn.style.display = 'inline-flex';
+                rerunBtn.disabled = true;
+                rerunBtn.innerText = '⏳ Running...';
+            }
+            if (liveBadge) {
+                liveBadge.className = 'status-pill pending';
+                liveBadge.innerHTML = '<span class="pulse-dot"></span> LIVE';
+            }
+
+            stderrBox.style.display = 'none';
+            stderrBox.innerText = '';
+
+            stdoutBox.innerHTML = `
+                <div class="terminal-prompt-line">
+                    <span class="t-user">krokbot@marinabox</span><span class="t-sep">:</span><span class="t-path">~/data/sandbox_workspace</span><span class="t-dollar">$</span> <span class="t-cmd">python3 -u ${escapeHtml(name)}</span>
+                </div>
+                <div id="terminal-live-stream" class="terminal-stream-container"></div>
+                <div id="terminal-cursor-row"><span class="terminal-cursor">█</span></div>
+            `;
+
+            overlay.classList.add('open');
+            appendChatMessage('system', `Terminal session launched for script: ${name}...`);
+
+            // Start elapsed timer
+            if (scriptTerminalTimer) clearInterval(scriptTerminalTimer);
+            scriptTerminalStartTime = performance.now();
+            scriptTerminalTimer = setInterval(() => {
+                const elapsed = performance.now() - scriptTerminalStartTime;
+                durationEl.innerText = formatTerminalDuration(elapsed);
+            }, 50);
+
+            if (currentEventSource) {
+                currentEventSource.close();
+                currentEventSource = null;
+            }
+
+            const streamContainer = document.getElementById('terminal-live-stream');
+            const terminalBody = document.getElementById('exec-terminal-body') || stdoutBox.parentElement;
+
+            function appendOutputLine(text, streamType = 'stdout') {
+                if (!text) return;
+                const lines = text.split('\n');
+                lines.forEach((line, idx) => {
+                    if (idx === lines.length - 1 && line === '') return;
+                    const lineDiv = document.createElement('div');
+                    lineDiv.className = `terminal-stream-line ${streamType}`;
+                    lineDiv.textContent = line;
+                    streamContainer.appendChild(lineDiv);
+                });
+                terminalBody.scrollTop = terminalBody.scrollHeight;
+            }
+
+            // Connect to real-time SSE stream
+            try {
+                const streamUrl = `/api/scripts/${encodeURIComponent(name)}/stream`;
+                const evtSource = new EventSource(streamUrl);
+                currentEventSource = evtSource;
+
+                evtSource.onmessage = function(e) {
+                    try {
+                        const data = JSON.parse(e.data);
+                        if (data.event === 'init') {
+                            if (data.sha256) {
+                                const hash = data.sha256.substring(0, 16) + '...';
+                                shaEl.innerText = hash;
+                                shaEl.title = `Full SHA-256: ${data.sha256}`;
+                            }
+                        } else if (data.event === 'start') {
+                            // Initiated
+                        } else if (data.event === 'output') {
+                            appendOutputLine(data.text, data.stream || 'stdout');
+                        } else if (data.event === 'complete') {
+                            if (scriptTerminalTimer) {
+                                clearInterval(scriptTerminalTimer);
+                                scriptTerminalTimer = null;
+                            }
+                            evtSource.close();
+                            currentEventSource = null;
+
+                            const finalDuration = data.duration_ms !== undefined ? data.duration_ms : Math.round(performance.now() - scriptTerminalStartTime);
+                            durationEl.innerText = formatTerminalDuration(finalDuration);
+
+                            const isSuccess = data.exit_code === 0;
+                            statusBadge.innerHTML = `
+                                <span class="status-pill ${isSuccess ? 'success' : 'failure'}">
+                                    Exit Code ${data.exit_code} (${isSuccess ? 'COMPLETED' : 'FAILED'})
+                                </span>
+                            `;
+
+                            if (liveBadge) {
+                                liveBadge.className = isSuccess ? 'status-pill success' : 'status-pill failure';
+                                liveBadge.innerText = isSuccess ? 'COMPLETE' : 'EXIT ' + data.exit_code;
+                            }
+
+                            const cursorRow = document.getElementById('terminal-cursor-row');
+                            if (cursorRow) {
+                                cursorRow.innerHTML = `
+                                    <div class="terminal-footer-line">[Process completed with exit code ${data.exit_code} in ${formatTerminalDuration(finalDuration)}]</div>
+                                    <div class="terminal-prompt-line" style="margin-top: 4px;">
+                                        <span class="t-user">krokbot@marinabox</span><span class="t-sep">:</span><span class="t-path">~/data/sandbox_workspace</span><span class="t-dollar">$</span> <span class="terminal-cursor static">█</span>
+                                    </div>
+                                `;
+                            }
+
+                            if (rerunBtn) {
+                                rerunBtn.disabled = false;
+                                rerunBtn.innerText = '↺ Re-run Script';
+                            }
+                            terminalBody.scrollTop = terminalBody.scrollHeight;
+                            appendChatMessage('krokbot', `Executed saved script "${name}": Exit ${data.exit_code} in ${finalDuration}ms.`);
+                        } else if (data.event === 'error') {
+                            appendOutputLine(`[ERROR]: ${data.message}`, 'stderr');
+                        }
+                    } catch (parseErr) {
+                        console.error("SSE parse error:", parseErr, e.data);
+                    }
+                };
+
+                evtSource.onerror = function(err) {
+                    console.warn("SSE connection closed or ended:", err);
+                    if (currentEventSource) {
+                        currentEventSource.close();
+                        currentEventSource = null;
+                    }
+                    if (scriptTerminalTimer) {
+                        clearInterval(scriptTerminalTimer);
+                        scriptTerminalTimer = null;
+                    }
+                    if (rerunBtn) {
+                        rerunBtn.disabled = false;
+                        rerunBtn.innerText = '↺ Re-run Script';
+                    }
+                };
+            } catch (err) {
+                console.error("Failed to open SSE stream:", err);
+                appendOutputLine(`[TERMINAL ERROR]: ${err}`, 'stderr');
+            }
+        }
+
+        async function openJobAuditModal(jobId, jobName) {
+            const overlay = document.getElementById('audit-modal-overlay');
+            document.getElementById('audit-modal-title').innerText = `Execution History & Audit Log: ${jobName}`;
+            document.getElementById('audit-job-subtitle').innerText = `Job ID: ${jobId} | Audit Store: data/logs/job_executions.jsonl`;
+            const tbody = document.getElementById('audit-table-body');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Loading audit records...</td></tr>';
+            document.getElementById('audit-detail-panel').style.display = 'none';
+            overlay.classList.add('open');
+
+            try {
+                const res = await fetch(`/api/schedules/${jobId}/executions?limit=30`);
+                const data = await res.json();
+                const executions = data.executions || [];
+
+                if (executions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No execution audit records recorded yet. Click <strong>▶ Run</strong> to trigger first run.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                executions.forEach((exec) => {
+                    const isSuccess = exec.exit_code === 0;
+                    const pillClass = isSuccess ? 'success' : 'failure';
+                    const hashShort = exec.script_sha256 ? exec.script_sha256.substring(0, 10) + '...' : '-';
+                    const tr = document.createElement('tr');
+                    tr.className = 'audit-row';
+                    tr.innerHTML = `
+                        <td><strong>${escapeHtml(exec.start_time)}</strong></td>
+                        <td><span style="text-transform: capitalize; color: #38bdf8;">${escapeHtml(exec.trigger_type)}</span> <small style="color: var(--text-muted);">(${escapeHtml(exec.trigger_source)})</small></td>
+                        <td><span class="status-pill ${pillClass}">Exit ${exec.exit_code}</span></td>
+                        <td>${exec.duration_ms} ms</td>
+                        <td><code class="sha256-badge" title="${escapeHtml(exec.script_sha256 || '')}">${hashShort}</code></td>
+                    `;
+                    tr.onclick = () => showAuditDetail(exec);
+                    tbody.appendChild(tr);
+                });
+
+                if (executions.length > 0) {
+                    showAuditDetail(executions[0]);
+                }
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="5" style="color: #ef4444; padding: 1rem;">Failed to load audit records: ${err}</td></tr>`;
+            }
+        }
+
+        function showAuditDetail(exec) {
+            const panel = document.getElementById('audit-detail-panel');
+            panel.style.display = 'block';
+            document.getElementById('audit-detail-id').innerText = exec.execution_id;
+            document.getElementById('audit-detail-time').innerText = `${exec.start_time} - ${exec.end_time}`;
+            document.getElementById('audit-detail-sha').innerText = exec.script_sha256 || 'N/A';
+            document.getElementById('audit-detail-stdout').innerText = exec.stdout || '(No stdout)';
+            const stderrEl = document.getElementById('audit-detail-stderr');
+            if (exec.stderr) {
+                stderrEl.style.display = 'block';
+                stderrEl.innerText = `[STDERR]:\n${exec.stderr}`;
+            } else {
+                stderrEl.style.display = 'none';
+            }
+        }
+
+        function closeJobAuditModal() {
+            document.getElementById('audit-modal-overlay').classList.remove('open');
+        }
+
+        // =====================================================================
+        // Thinking Process Display Controller
+        // =====================================================================
+        function isThinkingEnabled() {
+            const saved = localStorage.getItem('krokbot_show_thinking');
+            if (saved === null) return true; // Default to ON
+            return saved === 'true';
+        }
+
+        function initThinkingToggle() {
+            const enabled = isThinkingEnabled();
+            const checkbox = document.getElementById('toggle-show-thinking');
+            const statusText = document.getElementById('thinking-status-text');
+            if (checkbox) checkbox.checked = enabled;
+            if (statusText) {
+                statusText.innerText = enabled ? 'ON' : 'OFF';
+                statusText.style.color = enabled ? 'var(--accent)' : 'var(--text-muted)';
+            }
+            updateThoughtBoxesVisibility(enabled);
+        }
+
+        function handleThinkingToggle(isChecked) {
+            localStorage.setItem('krokbot_show_thinking', isChecked ? 'true' : 'false');
+            const statusText = document.getElementById('thinking-status-text');
+            if (statusText) {
+                statusText.innerText = isChecked ? 'ON' : 'OFF';
+                statusText.style.color = isChecked ? 'var(--accent)' : 'var(--text-muted)';
+            }
+            updateThoughtBoxesVisibility(isChecked);
+        }
+
+        function updateThoughtBoxesVisibility(visible) {
+            const thoughtBoxes = document.querySelectorAll('.thought-process-container');
+            thoughtBoxes.forEach(box => {
+                box.style.display = visible ? 'block' : 'none';
+            });
+            const chatWindow = document.getElementById('chat-window');
+            if (chatWindow) chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        function toggleThoughtCollapse(headerEl) {
+            const container = headerEl.closest('.thought-process-container');
+            if (!container) return;
+            container.classList.toggle('collapsed');
+            const toggleText = container.querySelector('.thought-collapse-toggle');
+            if (toggleText) {
+                toggleText.innerText = container.classList.contains('collapsed') ? '▶ expand' : '▼ collapse';
+            }
+        }
+
+        function appendChatMessage(sender, text, sandboxOutput, thinking) {
             const chatWindow = document.getElementById('chat-window');
             const msgDiv = document.createElement('div');
             msgDiv.className = 'chat-msg ' + sender + '-msg';
@@ -112,11 +1485,53 @@
             if (sender === 'user') {
                 msgDiv.innerHTML = `<span class="prompt-tag user-tag">user&gt;</span> ${escapeHtml(text)}`;
             } else if (sender === 'krokbot') {
+                let thoughtText = (thinking || '').trim();
+                let cleanText = (text || '').trim();
+
+                // If thinking not explicitly passed, check if text has embedded <think>...</think>
+                if (!thoughtText && cleanText.includes('<think>')) {
+                    const match = cleanText.match(/<think>([\s\S]*?)<\/think>/i);
+                    if (match) {
+                        thoughtText = match[1].trim();
+                        cleanText = cleanText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                    } else {
+                        const unclosedMatch = cleanText.match(/<think>([\s\S]*)/i);
+                        if (unclosedMatch) {
+                            thoughtText = unclosedMatch[1].trim();
+                            cleanText = cleanText.replace(/<think>[\s\S]*/gi, '').trim();
+                        }
+                    }
+                }
+
+                const showThinking = isThinkingEnabled();
+                let thoughtHtml = '';
+                if (thoughtText) {
+                    thoughtHtml = `
+                        <div class="thought-process-container" style="display: ${showThinking ? 'block' : 'none'};">
+                            <div class="thought-process-header" onclick="toggleThoughtCollapse(this)">
+                                <span class="thought-header-left">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04z"/></svg>
+                                    <span>Thinking Process</span>
+                                    <span class="thought-badge">REASONING</span>
+                                </span>
+                                <span class="thought-collapse-toggle">▼ collapse</span>
+                            </div>
+                            <div class="thought-process-body">${escapeHtml(thoughtText)}</div>
+                        </div>
+                    `;
+                }
+
                 let codeHtml = '';
                 if (sandboxOutput && sandboxOutput.stdout) {
                     codeHtml = `<pre class="sandbox-code-block"><code>[MARINABOX SANDBOX STDOUT]:\n${escapeHtml(sandboxOutput.stdout)}</code></pre>`;
                 }
-                msgDiv.innerHTML = `<span class="prompt-tag krokbot-tag">krokbot&gt;</span> ${escapeHtml(text)} ${codeHtml}`;
+
+                msgDiv.innerHTML = `
+                    <span class="prompt-tag krokbot-tag">krokbot&gt;</span>
+                    ${thoughtHtml}
+                    <div class="msg-output-content">${escapeHtml(cleanText)}</div>
+                    ${codeHtml}
+                `;
             } else {
                 msgDiv.innerHTML = `<span class="prompt-tag system-tag">system&gt;</span> ${escapeHtml(text)}`;
             }
@@ -143,33 +1558,1009 @@
             sendBtn.disabled = true;
             sendBtn.innerText = 'Executing...';
             document.getElementById('agent-status').innerText = 'Executing...';
-            document.getElementById('agent-status').style.color = '#f59e0b';
+            document.getElementById('agent-status').style.color = 'var(--sys-amber)';
 
             try {
+                const showThinking = isThinkingEnabled();
                 const res = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: prompt })
+                    body: JSON.stringify({ prompt: prompt, show_thinking: showThinking })
                 });
                 const data = await res.json();
-                appendChatMessage('krokbot', data.reply, data.sandbox_output);
+                appendChatMessage('krokbot', data.reply, data.sandbox_output, data.thinking);
+                if (data.requires_confirmation) {
+                    appendInteractiveScriptConfirmation(data);
+                }
                 fetchSchedules();
+                fetchScripts();
             } catch (err) {
                 appendChatMessage('system', 'Error communicating with KrokBot agent server: ' + err);
             } finally {
                 input.disabled = false;
                 sendBtn.disabled = false;
                 sendBtn.innerText = 'Send Prompt';
-                document.getElementById('agent-status').innerText = 'Active';
-                document.getElementById('agent-status').style.color = '#4ade80';
+                document.getElementById('agent-status').innerHTML = '<span class="pulse-dot"></span> Active';
+                document.getElementById('agent-status').style.color = 'var(--sys-green)';
                 input.focus();
             }
         }
 
+        function appendInteractiveScriptConfirmation(data) {
+            const chatWindow = document.getElementById('chat-window');
+            const confirmDiv = document.createElement('div');
+            confirmDiv.className = 'chat-confirm-box';
+            confirmDiv.id = 'active-script-confirm-box';
+            confirmDiv.innerHTML = `
+                <div style="font-weight: 700; color: var(--text-bright); font-size: 0.88rem; margin-bottom: 4px;">
+                    Python Script Filing Preference: <code>${escapeHtml(data.target_filename || 'script.py')}</code>
+                </div>
+                <div style="font-size: 0.82rem; color: var(--text-main); margin-bottom: 8px;">
+                    Do you want this script executed one-time only in the sandbox, or filed in the Saved Script Assets Library for future execution?
+                </div>
+                <div class="chat-confirm-buttons">
+                    <button type="button" class="btn-primary" style="padding: 5px 12px; font-size: 0.80rem;" onclick="submitScriptChoice('${escapeHtml(data.prompt)}', 'saved')">
+                        💾 Save to Script Assets Library
+                    </button>
+                    <button type="button" class="btn-action" style="padding: 5px 12px; font-size: 0.80rem;" onclick="submitScriptChoice('${escapeHtml(data.prompt)}', 'one_time')">
+                        ⚡ Run One-Time Only
+                    </button>
+                </div>
+            `;
+            chatWindow.appendChild(confirmDiv);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        async function submitScriptChoice(prompt, saveMode) {
+            const box = document.getElementById('active-script-confirm-box');
+            if (box) box.remove();
+
+            appendChatMessage('user', saveMode === 'saved' ? 'Save to Script Assets Library' : 'One-Time Only');
+            document.getElementById('agent-status').innerText = 'Executing...';
+            document.getElementById('agent-status').style.color = 'var(--sys-amber)';
+
+            try {
+                const showThinking = isThinkingEnabled();
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt, save_mode: saveMode, show_thinking: showThinking })
+                });
+                const data = await res.json();
+                appendChatMessage('krokbot', data.reply, data.sandbox_output, data.thinking);
+                fetchScripts(true);
+                fetchSchedules();
+            } catch (err) {
+                appendChatMessage('system', 'Error executing script choice: ' + err);
+            } finally {
+                document.getElementById('agent-status').innerHTML = '<span class="pulse-dot"></span> Active';
+                document.getElementById('agent-status').style.color = 'var(--sys-green)';
+            }
+        }
+
+        // =====================================================================
+        // Saved Script Assets Library Controller
+        // =====================================================================
+        let currentViewingScript = null;
+
+        async function fetchScripts(forceRefresh = false) {
+            try {
+                const res = await fetch('/api/scripts');
+                const scripts = await res.json();
+                const container = document.getElementById('scripts-list');
+                const badge = document.getElementById('scripts-count-badge');
+                if (badge) badge.innerText = `${scripts.length} ${scripts.length === 1 ? 'script' : 'scripts'}`;
+
+                if (!container) return;
+
+                if (!scripts || scripts.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 1.5rem 1rem; color: var(--text-muted);">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 0.5rem; opacity: 0.6;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            <p style="margin: 0;">No saved script assets in library (<code>data/scripts/</code>).</p>
+                            <small>Ask KrokBot in the terminal to generate and save a Python script.</small>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Script Filename</th>
+                                <th>Category</th>
+                                <th>Purpose &amp; Functional Summary</th>
+                                <th>Documentation</th>
+                                <th>Size</th>
+                                <th>Last Modified</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                scripts.forEach(s => {
+                    const hashShort = s.sha256 ? s.sha256.substring(0, 10) + '...' : '--';
+                    const modDate = s.modified_at ? new Date(s.modified_at).toLocaleDateString() + ' ' + new Date(s.modified_at).toLocaleTimeString() : '--';
+                    
+                    html += `
+                        <tr>
+                            <td>
+                                <div style="font-weight: 700; color: var(--text-bright); font-size: 0.88rem;">${escapeHtml(s.name)}</div>
+                                <code class="sha256-badge" title="${escapeHtml(s.sha256 || '')}">${hashShort}</code>
+                            </td>
+                            <td>
+                                <span class="scope-pill">${escapeHtml(s.category || 'Automation')}</span>
+                            </td>
+                            <td style="font-size: 0.82rem; color: var(--text-main); max-width: 320px; line-height: 1.4;">
+                                ${escapeHtml(s.purpose_summary || 'No summary provided.')}
+                            </td>
+                            <td>
+                                ${s.has_markup ? `<span class="md-badge" title="Paired documentation file: ${escapeHtml(s.markup_filename)}">📄 ${escapeHtml(s.markup_filename)}</span>` : '<span style="color: var(--text-muted); font-size: 0.72rem;">None</span>'}
+                            </td>
+                            <td style="font-family: var(--font-mono); font-size: 0.78rem;">
+                                ${s.size_formatted}
+                            </td>
+                            <td style="font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-muted);">
+                                ${modDate}
+                            </td>
+                            <td style="text-align: right;">
+                                <div style="display: inline-flex; gap: 6px;">
+                                    <button onclick="openScriptDetailModal('${escapeHtml(s.name)}')" class="btn-logs" title="Review paired documentation and source code">📖 Details</button>
+                                    <button onclick="runScriptNow('${escapeHtml(s.name)}')" class="btn-run" title="Execute one-time in compute sandbox">▶ Run</button>
+                                    <button onclick="deleteScriptAsset('${escapeHtml(s.name)}')" class="btn-delete-job" title="Delete script and paired markdown file">✕ Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (err) {
+                console.error("Fetch scripts error", err);
+            }
+        }
+
+        async function manualRefreshScripts() {
+            const btn = document.getElementById('btn-refresh-scripts');
+            if (btn) btn.classList.add('spinning');
+            await fetchScripts(true);
+            setTimeout(() => {
+                if (btn) btn.classList.remove('spinning');
+            }, 500);
+        }
+
+        async function openScriptDetailModal(name) {
+            try {
+                const res = await fetch(`/api/scripts/${encodeURIComponent(name)}`);
+                if (!res.ok) {
+                    await showCustomAlert("Error", `Failed to load script asset '${name}'.`, "danger");
+                    return;
+                }
+                const data = await res.json();
+                currentViewingScript = data;
+
+                document.getElementById('script-detail-modal-title').innerText = `Script Asset: ${data.name}`;
+                document.getElementById('script-detail-subtitle').innerText = `Path: data/scripts/${data.name} & ${data.markup_filename}`;
+                document.getElementById('script-meta-category').innerText = data.metadata?.category || "Workstation Automation";
+                document.getElementById('script-meta-size').innerText = `${data.size_bytes} Bytes`;
+                
+                const sha = data.sha256 || "N/A";
+                const shaEl = document.getElementById('script-meta-sha');
+                shaEl.innerText = sha.length > 16 ? sha.substring(0, 16) + '...' : sha;
+                shaEl.title = sha;
+
+                document.getElementById('script-doc-content').innerText = data.markdown || "No paired markdown documentation found.";
+                document.getElementById('script-code-content').innerText = data.code || "# No code found";
+
+                switchScriptDetailTab('doc');
+                document.getElementById('script-detail-modal-overlay').classList.add('open');
+            } catch (err) {
+                await showCustomAlert("Error", "Error fetching script details: " + err, "danger");
+            }
+        }
+
+        function closeScriptDetailModal() {
+            document.getElementById('script-detail-modal-overlay').classList.remove('open');
+            currentViewingScript = null;
+        }
+
+        function switchScriptDetailTab(tab) {
+            const docTabBtn = document.getElementById('tab-btn-script-doc');
+            const codeTabBtn = document.getElementById('tab-btn-script-code');
+            const docPane = document.getElementById('script-doc-pane');
+            const codePane = document.getElementById('script-code-pane');
+
+            if (tab === 'doc') {
+                docTabBtn.classList.add('active');
+                codeTabBtn.classList.remove('active');
+                docPane.style.display = 'block';
+                codePane.style.display = 'none';
+            } else {
+                codeTabBtn.classList.add('active');
+                docTabBtn.classList.remove('active');
+                docPane.style.display = 'none';
+                codePane.style.display = 'block';
+            }
+        }
+
+        function copyScriptSourceCode() {
+            const code = document.getElementById('script-code-content').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = document.getElementById('btn-copy-script-code');
+                btn.innerText = 'Copied!';
+                setTimeout(() => { btn.innerText = 'Copy Code'; }, 1500);
+            });
+        }
+
+        async function runScriptFromModal() {
+            if (!currentViewingScript) return;
+            const name = currentViewingScript.name;
+            closeScriptDetailModal();
+            await runScriptNow(name);
+        }
+
+        async function runScriptNow(name) {
+            const confirmed = await showCustomConfirm({
+                title: "Run Script in Terminal Console",
+                message: `Execute script <strong>${escapeHtml(name)}</strong> in the interactive terminal console with live command line output streaming?`,
+                confirmText: "Launch Terminal",
+                cancelText: "Cancel",
+                type: "primary"
+            });
+
+            if (!confirmed) return;
+
+            await startScriptTerminalSession(name);
+        }
+
+        async function deleteScriptAsset(name) {
+            const confirmed = await showCustomConfirm({
+                title: "Delete Saved Script Asset",
+                message: `Are you sure you want to delete script <strong>${escapeHtml(name)}</strong> and its paired documentation (.md)? This removes the files from <code>data/scripts/</code> and cannot be undone.`,
+                confirmText: "Delete Asset",
+                cancelText: "Cancel",
+                type: "danger"
+            });
+
+            if (!confirmed) return;
+
+            try {
+                const res = await fetch(`/api/scripts/${encodeURIComponent(name)}`, { method: 'DELETE' });
+                if (res.ok) {
+                    await fetchScripts(true);
+                    appendChatMessage('system', `Deleted script asset: ${name}`);
+                } else {
+                    const err = await res.json();
+                    await showCustomAlert("Delete Failed", "Failed to delete script: " + (err.detail || JSON.stringify(err)), "danger");
+                }
+            } catch (err) {
+                await showCustomAlert("Error", "Error deleting script: " + err, "danger");
+            }
+        }
+
+
+        // Llama.cpp Status & Models
+        async function fetchLlamaStatus() {
+            try {
+                const res = await fetch('/api/llamacpp/status');
+                const data = await res.json();
+                const isOnline = data.status === 'online';
+
+                // Header badge
+                const headerBadge = document.getElementById('header-status-badge');
+                headerBadge.className = isOnline ? 'status-badge badge-online' : 'status-badge badge-offline';
+                document.getElementById('header-status-text').innerText = isOnline ? 'Llama.cpp Online' : 'Llama.cpp Offline';
+
+                // Tab card
+                const llmBadge = document.getElementById('llm-badge');
+                if (llmBadge) {
+                    llmBadge.className = isOnline ? 'status-badge badge-online' : 'status-badge badge-offline';
+                    llmBadge.innerHTML = isOnline ? '<span class="pulse-dot"></span> Online' : '<span class="pulse-dot"></span> Offline';
+                    document.getElementById('llm-base-url').innerText = data.base_url || 'http://127.0.0.1:8081';
+                    
+                    const activeName = (data.loaded_models && data.loaded_models.length > 0) 
+                        ? data.loaded_models[0].split('/').pop() 
+                        : (data.active_model_name || 'None');
+                    document.getElementById('llm-active-model').innerText = activeName;
+                    document.getElementById('llm-model-details').innerText = `${data.chat_format.toUpperCase()} | ${data.context_size} Context`;
+                }
+            } catch (err) {
+                console.error("Llama status error", err);
+            }
+        }
+
+        async function fetchModels() {
+            try {
+                const res = await fetch('/api/models');
+                const data = await res.json();
+                catalogData = data.catalog || {};
+
+                // Update Catalog Dropdown
+                const catSelect = document.getElementById('catalog-select');
+                if (catSelect && Object.keys(catalogData).length > 0 && catSelect.options.length <= 1) {
+                    for (const [key, item] of Object.entries(catalogData)) {
+                        const opt = document.createElement('option');
+                        opt.value = key;
+                        opt.innerText = `${item.name || key} (${item.size_mb || '?'} MB)`;
+                        catSelect.appendChild(opt);
+                    }
+                }
+
+                // Update Local Models Table
+                const tbody = document.getElementById('models-table-body');
+                if (!tbody) return;
+                tbody.innerHTML = '';
+                const available = data.available || [];
+                const activeFilename = (data.active_config && data.active_config.filename) || '';
+
+                const modelsBadge = document.getElementById('models-count-badge');
+                if (modelsBadge) {
+                    modelsBadge.innerText = `${available.length} model${available.length === 1 ? '' : 's'}`;
+                }
+
+                if (available.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.82rem;">No .gguf files found in ./models directory.</td></tr>';
+                    return;
+                }
+
+                available.forEach(m => {
+                    const isActive = m.filename === activeFilename;
+                    const badge = isActive 
+                        ? '<span class="status-pill success"><span class="pulse-dot"></span> Active</span>' 
+                        : '<span class="status-pill pending">Stored</span>';
+                    
+                    const activateBtn = isActive
+                        ? '<span class="status-pill success" style="margin-right: 6px; font-size: 0.70rem; opacity: 0.85;">✔ Active Model</span>'
+                        : `<button onclick="setActiveModel('${escapeHtml(m.filename)}')" class="btn-run" style="margin-right: 6px; padding: 4px 10px; font-size: 0.75rem;" title="Set as active LLM inference model">★ Set as Active</button>`;
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><strong style="font-family: var(--font-mono);">${escapeHtml(m.filename)}</strong></td>
+                        <td><code class="id-badge">${m.size_mb} MB</code></td>
+                        <td><small style="color: var(--text-muted); font-family: var(--font-mono);">${m.modified}</small></td>
+                        <td>${badge}</td>
+                        <td style="text-align: right; white-space: nowrap;">
+                            ${activateBtn}
+                            <button onclick="deleteModelFile('${escapeHtml(m.filename)}', ${m.size_mb}, ${isActive})" class="btn-delete-job" title="Delete and purge model from container storage">
+                                ✕ Delete
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+            } catch (err) {
+                console.error("Models fetch error", err);
+            }
+        }
+
+        async function setActiveModel(filename) {
+            const confirmed = await showCustomConfirm({
+                title: "Set Active LLM Model",
+                message: `Switch the active LLM inference model to <strong>${escapeHtml(filename)}</strong>?<br><br>The local Llama.cpp engine will be reconfigured and reloaded with this model file.`,
+                confirmText: "Activate Model",
+                cancelText: "Cancel",
+                type: "primary"
+            });
+
+            if (!confirmed) return;
+
+            appendChatMessage('system', `Switching active LLM model to: ${filename}...`);
+
+            try {
+                const res = await fetch(`/api/models/${encodeURIComponent(filename)}/activate`, {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    await fetchModels();
+                    await fetchLlamaStatus();
+                    appendChatMessage('krokbot', `Model "${filename}" is now the active LLM inference engine.`);
+                    await showCustomAlert("Model Activated", `Model <strong>${escapeHtml(filename)}</strong> is now active.<br><br>Model Name: <code>${escapeHtml(data.name || '')}</code><br>Context Size: <code>${data.context_size || 2048}</code> | Chat Format: <code>${data.chat_format || 'chatml'}</code>`, "primary");
+                } else {
+                    const err = data.detail || JSON.stringify(data);
+                    await showCustomAlert("Activation Failed", `Failed to set model as active: ${escapeHtml(err)}`, "danger");
+                }
+            } catch (err) {
+                await showCustomAlert("Error", "Error activating model: " + err, "danger");
+            }
+        }
+
+        async function deleteModelFile(filename, sizeMb, isActive) {
+            let warnExtra = "";
+            if (isActive) {
+                warnExtra = "<br><br><span style='color: var(--sys-amber);'>⚠️ <strong>WARNING:</strong> This model is currently loaded as the active inference engine. Deleting it will permanently remove the weight file from storage.</span>";
+            }
+
+            const confirmed = await showCustomConfirm({
+                title: "Purge GGUF Model File",
+                message: `Are you sure you want to permanently delete and purge model file <strong>${escapeHtml(filename)}</strong> (<code>${sizeMb} MB</code>) from the system and container storage?${warnExtra}`,
+                confirmText: "Delete & Purge Model",
+                cancelText: "Cancel",
+                type: "danger"
+            });
+
+            if (!confirmed) return;
+
+            try {
+                const res = await fetch(`/api/models/${encodeURIComponent(filename)}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    await fetchModels();
+                    await fetchMetrics(); // Immediately update container storage telemetry
+                } else {
+                    await showCustomAlert("Deletion Failed", "Failed to delete model: " + (data.detail || JSON.stringify(data)), "danger");
+                }
+            } catch (err) {
+                await showCustomAlert("Request Error", "Error requesting model deletion: " + err, "danger");
+            }
+        }
+
+        function handleCatalogSelect() {
+            const select = document.getElementById('catalog-select');
+            const key = select.value;
+            if (!key || !catalogData[key]) return;
+            const item = catalogData[key];
+            document.getElementById('download-url').value = item.url || '';
+            document.getElementById('download-filename').value = item.filename || (key + '.gguf');
+        }
+
+        async function handleModelDownload(e) {
+            e.preventDefault();
+            const url = document.getElementById('download-url').value.trim();
+            const filename = document.getElementById('download-filename').value.trim();
+            const btn = document.getElementById('download-btn');
+            if (!url || !filename) return;
+
+            btn.disabled = true;
+            btn.innerText = 'Starting Download...';
+            document.getElementById('download-progress-box').style.display = 'block';
+
+            try {
+                const res = await fetch('/api/models/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, filename: filename })
+                });
+                const data = await res.json();
+                if (data.status === 'started') {
+                    pollDownloadProgress();
+                } else {
+                    await showCustomAlert("Model Download Failed", "Download error: " + (data.detail || JSON.stringify(data)), "danger");
+                    btn.disabled = false;
+                    btn.innerText = 'Pull Model to Storage';
+                }
+            } catch (err) {
+                await showCustomAlert("Download Request Error", "Request error: " + err, "danger");
+                btn.disabled = false;
+                btn.innerText = 'Pull Model to Storage';
+            }
+        }
+
+        let downloadPollTimer = null;
+        function pollDownloadProgress() {
+            if (downloadPollTimer) clearInterval(downloadPollTimer);
+
+            downloadPollTimer = setInterval(async () => {
+                try {
+                    const res = await fetch('/api/models/download/progress');
+                    const progress = await res.json();
+
+                    const fill = document.getElementById('dl-progress-fill');
+                    const text = document.getElementById('dl-progress-text');
+                    const filenameLabel = document.getElementById('dl-filename-label');
+                    const speedLabel = document.getElementById('dl-speed-label');
+                    const statusMsg = document.getElementById('dl-status-msg');
+
+                    filenameLabel.innerText = progress.filename ? `Pulling ${progress.filename}` : 'Downloading model...';
+                    fill.style.width = (progress.percent || 0) + '%';
+                    text.innerText = (progress.percent || 0) + '%';
+                    speedLabel.innerText = `${progress.speed_mb || 0} MB/s`;
+
+                    if (progress.status === 'downloading') {
+                        const downMB = Math.round((progress.downloaded_bytes || 0) / (1024 * 1024));
+                        const totMB = Math.round((progress.total_bytes || 0) / (1024 * 1024));
+                        statusMsg.innerText = `Streaming chunks: ${downMB} MB of ${totMB} MB`;
+                    } else if (progress.status === 'complete') {
+                        statusMsg.innerText = 'Download complete! Model saved to storage.';
+                        statusMsg.style.color = '#4ade80';
+                        clearInterval(downloadPollTimer);
+                        document.getElementById('download-btn').disabled = false;
+                        document.getElementById('download-btn').innerText = 'Pull Model to Storage';
+                        fetchModels();
+                    } else if (progress.status === 'error') {
+                        statusMsg.innerText = 'Error: ' + progress.error;
+                        statusMsg.style.color = '#ef4444';
+                        clearInterval(downloadPollTimer);
+                        document.getElementById('download-btn').disabled = false;
+                        document.getElementById('download-btn').innerText = 'Pull Model to Storage';
+                    }
+                } catch (err) {
+                    console.error("Progress poll error", err);
+                }
+            }, 1000);
+        }
+
+        async function handlePlaygroundSubmit(e) {
+            e.preventDefault();
+            const prompt = document.getElementById('play-prompt').value.trim();
+            const system = document.getElementById('play-system').value.trim();
+            const temp = parseFloat(document.getElementById('play-temp').value);
+            const tokens = parseInt(document.getElementById('play-tokens').value);
+            const btn = document.getElementById('play-btn');
+            const latencyBadge = document.getElementById('play-latency');
+            const responseBox = document.getElementById('play-response');
+            const container = document.getElementById('play-response-container');
+
+            if (!prompt) return;
+            btn.disabled = true;
+            btn.innerText = 'Generating...';
+            latencyBadge.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/llamacpp/prompt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        system: system,
+                        temperature: temp,
+                        max_tokens: tokens
+                    })
+                });
+                const data = await res.json();
+                container.style.display = 'block';
+                responseBox.innerText = data.reply || '(empty response)';
+                latencyBadge.innerText = `Latency: ${data.latency_ms}ms | Model: ${data.model}`;
+                latencyBadge.style.display = 'inline-block';
+            } catch (err) {
+                container.style.display = 'block';
+                responseBox.innerText = 'Error generating completion: ' + err;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Generate Completion';
+            }
+        }
+
+        // =========================================================================
+        // Universal Custom Modal System (Replaces default browser alert & confirm)
+        // =========================================================================
+        let activeModalResolve = null;
+
+        function showCustomConfirm({
+            title = "Confirmation Required",
+            message = "Are you sure you want to proceed?",
+            confirmText = "Confirm",
+            cancelText = "Cancel",
+            type = "danger" // 'danger' | 'primary' | 'warning' | 'info'
+        }) {
+            return new Promise((resolve) => {
+                activeModalResolve = resolve;
+                const overlay = document.getElementById('custom-modal-overlay');
+                const titleEl = document.getElementById('custom-modal-title');
+                const messageEl = document.getElementById('custom-modal-message');
+                const iconContainer = document.getElementById('custom-modal-icon');
+                const confirmBtn = document.getElementById('custom-modal-confirm-btn');
+                const cancelBtn = document.getElementById('custom-modal-cancel-btn');
+
+                titleEl.innerText = title;
+                messageEl.innerHTML = message;
+                confirmBtn.innerText = confirmText;
+                cancelBtn.innerText = cancelText;
+                cancelBtn.style.display = 'inline-flex';
+
+                iconContainer.className = 'modal-icon-container ' + type;
+                if (type === 'danger') {
+                    iconContainer.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+                    confirmBtn.className = 'modal-btn modal-btn-danger';
+                } else if (type === 'primary') {
+                    iconContainer.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+                    confirmBtn.className = 'modal-btn modal-btn-primary';
+                } else if (type === 'warning') {
+                    iconContainer.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+                    confirmBtn.className = 'modal-btn modal-btn-primary';
+                } else {
+                    iconContainer.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+                    confirmBtn.className = 'modal-btn modal-btn-primary';
+                }
+
+                overlay.classList.add('open');
+                confirmBtn.focus();
+            });
+        }
+
+        function showCustomAlert(title, message, type = 'info') {
+            return new Promise((resolve) => {
+                showCustomConfirm({
+                    title: title,
+                    message: message,
+                    confirmText: "OK",
+                    cancelText: "",
+                    type: type
+                }).then(() => resolve());
+                
+                document.getElementById('custom-modal-cancel-btn').style.display = 'none';
+            });
+        }
+
+        function closeCustomModal(result) {
+            const overlay = document.getElementById('custom-modal-overlay');
+            if (overlay) overlay.classList.remove('open');
+            if (activeModalResolve) {
+                const cb = activeModalResolve;
+                activeModalResolve = null;
+                cb(result);
+            }
+        }
+
+        // Global keyboard listener for modal dismissal
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const customOverlay = document.getElementById('custom-modal-overlay');
+                if (customOverlay && customOverlay.classList.contains('open')) {
+                    closeCustomModal(false);
+                }
+                const execOverlay = document.getElementById('exec-modal-overlay');
+                if (execOverlay && execOverlay.classList.contains('open')) {
+                    closeLiveExecutionModal();
+                }
+                const auditOverlay = document.getElementById('audit-modal-overlay');
+                if (auditOverlay && auditOverlay.classList.contains('open')) {
+                    closeJobAuditModal();
+                }
+            }
+        });
+
+        // =========================================================================
+        // Collapsible Section Toggle System with Persistent State
+        // =========================================================================
+        const ALL_COLLAPSIBLE_SECTIONS = [
+            // Tab 1: Agent Console
+            'terminal',
+            'schedules',
+            'scripts',
+            'activity-log',
+            // Tab 2: Model Manager
+            'playground',
+            'models-library',
+            'model-download',
+            // Tab 3: Agent Tools
+            'tools-governance',
+            'api-control'
+        ];
+
+        function toggleSection(sectionId, event) {
+            if (event && event.target.closest && (event.target.closest('button') || event.target.closest('input') || event.target.closest('form') || event.target.closest('textarea') || event.target.closest('select') || event.target.closest('a'))) {
+                return;
+            }
+            const card = document.getElementById(`card-${sectionId}`);
+            if (card) {
+                card.classList.toggle('collapsed');
+                const isCollapsed = card.classList.contains('collapsed');
+                try {
+                    localStorage.setItem(`krokbot_panel_${sectionId}_collapsed`, isCollapsed ? '1' : '0');
+                } catch (e) {}
+            }
+        }
+
+        function clearActivityLog() {
+            const box = document.getElementById('log-box');
+            if (box) box.innerHTML = `[${new Date().toLocaleTimeString()}] Activity log cleared by operator.`;
+        }
+
+        // ==========================================================================
+        // Workstation Color Palette Switcher
+        // ==========================================================================
+        const WORKSTATION_PALETTES = {
+            'matrix-green': { name: 'Matrix Green', label: 'Matrix Phosphor' },
+            'amber-crt': { name: 'Amber CRT', label: 'Amber CRT' },
+            'slate-industrial': { name: 'Slate', label: 'Slate Industrial' },
+            'cyber-cyan': { name: 'Cyber Cyan', label: 'Cyber Cyan' },
+            'monochrome': { name: 'Monochrome', label: 'Monochrome Stealth' }
+        };
+
+        function initWorkstationPalette() {
+            let saved = 'matrix-green';
+            try {
+                saved = localStorage.getItem('krokbot_workstation_palette') || 'matrix-green';
+            } catch (e) {}
+            applyPalette(saved, false);
+        }
+
+        function applyPalette(paletteId, save = true) {
+            if (!WORKSTATION_PALETTES[paletteId]) paletteId = 'matrix-green';
+            document.documentElement.setAttribute('data-theme', paletteId);
+            if (save) {
+                try {
+                    localStorage.setItem('krokbot_workstation_palette', paletteId);
+                } catch (e) {}
+            }
+
+            const labelEl = document.getElementById('current-palette-name');
+            if (labelEl) {
+                labelEl.textContent = WORKSTATION_PALETTES[paletteId].name;
+            }
+
+            document.querySelectorAll('.palette-opt').forEach(opt => {
+                const pId = opt.getAttribute('data-palette');
+                const checkEl = document.getElementById('check-' + pId);
+                if (pId === paletteId) {
+                    opt.classList.add('active');
+                    if (checkEl) checkEl.style.display = 'inline';
+                } else {
+                    opt.classList.remove('active');
+                    if (checkEl) checkEl.style.display = 'none';
+                }
+            });
+        }
+
+        function togglePaletteMenu(event) {
+            if (event) event.stopPropagation();
+            const menu = document.getElementById('palette-menu');
+            if (menu) {
+                const isHidden = menu.style.display === 'none' || !menu.style.display;
+                menu.style.display = isHidden ? 'block' : 'none';
+            }
+        }
+
+        function selectPalette(paletteId) {
+            applyPalette(paletteId, true);
+            const menu = document.getElementById('palette-menu');
+            if (menu) menu.style.display = 'none';
+        }
+
+        document.addEventListener('click', (e) => {
+            const wrapper = document.querySelector('.palette-switcher-wrapper');
+            if (wrapper && !wrapper.contains(e.target)) {
+                const menu = document.getElementById('palette-menu');
+                if (menu) menu.style.display = 'none';
+            }
+        });
+
+        initWorkstationPalette();
+
+        function restorePanelStates() {
+            ALL_COLLAPSIBLE_SECTIONS.forEach(sectionId => {
+                try {
+                    if (localStorage.getItem(`krokbot_panel_${sectionId}_collapsed`) === '1') {
+                        const card = document.getElementById(`card-${sectionId}`);
+                        if (card) card.classList.add('collapsed');
+                    }
+                } catch (e) {}
+            });
+        }
+
+        restorePanelStates();
+        initThinkingToggle();
+
+        // Periodic refreshes
         setInterval(fetchMetrics, 3000);
         setInterval(fetchSchedules, 5000);
+        setInterval(fetchScripts, 5000);
+        setInterval(fetchLlamaStatus, 5000);
+
         fetchMetrics();
         fetchSchedules();
+        fetchScripts();
+        fetchLlamaStatus();
+        fetchToolsPolicy();
     </script>
+
+    <!-- Custom Interactive Modal Container -->
+    <div id="custom-modal-overlay" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="custom-modal-title" onclick="if(event.target.id === 'custom-modal-overlay') closeCustomModal(false)">
+        <div class="modal-dialog" id="custom-modal-dialog">
+            <div class="modal-header">
+                <div id="custom-modal-icon" class="modal-icon-container danger">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </div>
+                <div class="modal-header-content">
+                    <h3 id="custom-modal-title" class="modal-title">Confirm Action</h3>
+                </div>
+                <button id="custom-modal-x-btn" onclick="closeCustomModal(false)" class="modal-close-btn" title="Close" aria-label="Close">&times;</button>
+            </div>
+            <div id="custom-modal-message" class="modal-body">
+                Are you sure you want to proceed?
+            </div>
+            <div class="modal-footer">
+                <button id="custom-modal-cancel-btn" onclick="closeCustomModal(false)" class="modal-btn modal-btn-cancel">Cancel</button>
+                <button id="custom-modal-confirm-btn" onclick="closeCustomModal(true)" class="modal-btn modal-btn-danger">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-Time Job Execution Live Console / Terminal Modal -->
+    <div id="exec-modal-overlay" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="exec-modal-title">
+        <div class="modal-dialog modal-dialog-large" id="exec-modal-dialog">
+            <div class="modal-header">
+                <div class="modal-icon-container primary">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                </div>
+                <div class="modal-header-content">
+                    <h3 id="exec-modal-title" class="modal-title">Interactive Terminal Console</h3>
+                    <div id="exec-modal-status-badge" style="margin-top: 4px;">
+                        <span class="status-pill pending">Initializing sandbox...</span>
+                    </div>
+                </div>
+                <button id="exec-modal-x-btn" onclick="closeLiveExecutionModal()" class="modal-close-btn" title="Close" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="execution-meta-bar">
+                    <div class="meta-group">
+                        <span class="meta-label">Duration:</span>
+                        <span id="exec-modal-duration" class="meta-val">-- ms</span>
+                    </div>
+                    <div class="meta-group">
+                        <span class="meta-label">Environment:</span>
+                        <span id="exec-modal-trigger" class="meta-val">krokbot@marinabox-sandbox</span>
+                    </div>
+                    <div class="meta-group">
+                        <span class="meta-label">Script Integrity:</span>
+                        <code id="exec-modal-sha256" class="sha256-badge">Computing...</code>
+                    </div>
+                </div>
+
+                <div class="terminal-console-box">
+                    <div class="terminal-topbar">
+                        <div class="terminal-dots">
+                            <span class="terminal-dot red"></span>
+                            <span class="terminal-dot yellow"></span>
+                            <span class="terminal-dot green"></span>
+                        </div>
+                        <div id="terminal-session-title" style="font-family: var(--font-mono); font-size: 0.74rem; color: var(--text-bright);">krokbot@marinabox:~/data/sandbox_workspace</div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button type="button" class="btn-action" style="padding: 2px 6px; font-size: 0.70rem;" onclick="clearTerminalScreen()">Clear</button>
+                            <span id="terminal-live-badge" class="status-pill pending" style="font-size: 0.68rem;"><span class="pulse-dot"></span> LIVE</span>
+                        </div>
+                    </div>
+                    <div class="terminal-body" id="exec-terminal-body">
+                        <div id="exec-console-stdout" class="stdout-text">Waiting for execution output...</div>
+                        <div id="exec-console-stderr" class="stderr-text" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between;">
+                <div style="display: flex; gap: 8px;">
+                    <button id="exec-rerun-btn" onclick="rerunCurrentScriptTerminal()" class="btn-run" style="padding: 6px 14px; font-size: 0.82rem; display: none;">↺ Re-run Script</button>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button id="exec-copy-btn" onclick="copyExecutionConsole()" class="modal-btn modal-btn-cancel">Copy Output</button>
+                    <button onclick="closeLiveExecutionModal()" class="modal-btn modal-btn-primary">Close Terminal</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Audit & Execution History Modal -->
+    <div id="audit-modal-overlay" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="audit-modal-title">
+        <div class="modal-dialog modal-dialog-large" id="audit-modal-dialog">
+            <div class="modal-header">
+                <div class="modal-icon-container" style="background: rgba(168, 85, 247, 0.16); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); box-shadow: 0 0 16px rgba(168, 85, 247, 0.25);">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                </div>
+                <div class="modal-header-content">
+                    <h3 id="audit-modal-title" class="modal-title">Task Execution Audit Log</h3>
+                    <div id="audit-job-subtitle" style="color: var(--text-muted); font-size: 0.8rem; margin-top: 2px;">Governance and Execution Trail</div>
+                </div>
+                <button id="audit-modal-x-btn" onclick="closeJobAuditModal()" class="modal-close-btn" title="Close" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="max-height: 180px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 1rem;">
+                    <table class="audit-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Trigger (Source)</th>
+                                <th>Result</th>
+                                <th>Duration</th>
+                                <th>Script Hash</th>
+                            </tr>
+                        </thead>
+                        <tbody id="audit-table-body">
+                            <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Select a job to view history.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Selected Run Details Panel -->
+                <div id="audit-detail-panel" style="display: none;">
+                    <div class="execution-meta-bar">
+                        <div class="meta-group">
+                            <span class="meta-label">Exec ID:</span>
+                            <span id="audit-detail-id" class="meta-val">--</span>
+                        </div>
+                        <div class="meta-group">
+                            <span class="meta-label">Execution Time:</span>
+                            <span id="audit-detail-time" class="meta-val">--</span>
+                        </div>
+                        <div class="meta-group">
+                            <span class="meta-label">SHA-256:</span>
+                            <code id="audit-detail-sha" class="sha256-badge">--</code>
+                        </div>
+                    </div>
+                    <div class="terminal-console-box">
+                        <div class="terminal-topbar">
+                            <div class="terminal-dots">
+                                <span class="terminal-dot red"></span>
+                                <span class="terminal-dot yellow"></span>
+                                <span class="terminal-dot green"></span>
+                            </div>
+                            <div>historical_run.log</div>
+                            <div>Recorded Terminal Stdout</div>
+                        </div>
+                        <div class="terminal-body">
+                            <div id="audit-detail-stdout" class="stdout-text"></div>
+                            <div id="audit-detail-stderr" class="stderr-text" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeJobAuditModal()" class="modal-btn modal-btn-cancel">Close History</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Asset Details Modal -->
+    <div id="script-detail-modal-overlay" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="script-detail-modal-title" onclick="if(event.target.id === 'script-detail-modal-overlay') closeScriptDetailModal()">
+        <div class="modal-dialog" style="max-width: 820px; width: 95%;">
+            <div class="modal-header">
+                <div class="modal-icon-container" style="background: var(--sys-green-dim); color: var(--sys-green); border: 1px solid rgba(0, 255, 102, 0.3);">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                </div>
+                <div class="modal-header-content">
+                    <h3 id="script-detail-modal-title" class="modal-title" style="margin: 0;">Script Asset Review</h3>
+                    <div id="script-detail-subtitle" style="font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">data/scripts/</div>
+                </div>
+                <button onclick="closeScriptDetailModal()" class="modal-close-btn" aria-label="Close modal">✕</button>
+            </div>
+            
+            <div class="modal-body" style="padding: 1.25rem;">
+                <!-- Script Meta Summary Strip -->
+                <div class="execution-meta-bar" style="margin-bottom: 1rem;">
+                    <div class="meta-group">
+                        <span class="meta-label">Category:</span>
+                        <span id="script-meta-category" class="meta-val">--</span>
+                    </div>
+                    <div class="meta-group">
+                        <span class="meta-label">File Size:</span>
+                        <span id="script-meta-size" class="meta-val">--</span>
+                    </div>
+                    <div class="meta-group">
+                        <span class="meta-label">SHA-256 Hash:</span>
+                        <code id="script-meta-sha" class="sha256-badge">--</code>
+                    </div>
+                </div>
+
+                <!-- Tabs: Paired Markdown Docs vs Raw Python Source -->
+                <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color); margin-bottom: 1rem;">
+                    <button id="tab-btn-script-doc" class="btn-action active" onclick="switchScriptDetailTab('doc')">📖 Paired Markup Documentation (.md)</button>
+                    <button id="tab-btn-script-code" class="btn-action" onclick="switchScriptDetailTab('code')">💻 Python Source Code (.py)</button>
+                </div>
+
+                <!-- Documentation View -->
+                <div id="script-doc-pane" style="background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 1.25rem; border-radius: 2px; max-height: 380px; overflow-y: auto;">
+                    <div id="script-doc-content" style="font-family: var(--font-ui); font-size: 0.88rem; color: var(--text-main); line-height: 1.6; white-space: pre-wrap;"></div>
+                </div>
+
+                <!-- Source Code View -->
+                <div id="script-code-pane" style="display: none;">
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
+                        <button id="btn-copy-script-code" class="btn-action" onclick="copyScriptSourceCode()">Copy Code</button>
+                    </div>
+                    <pre class="terminal-body" style="max-height: 350px; overflow-y: auto; background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 12px; border-radius: 2px; margin: 0;"><code id="script-code-content" style="color: var(--text-bright); font-family: var(--font-mono); font-size: 0.80rem;"></code></pre>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="display: flex; justify-content: space-between;">
+                <button id="btn-run-from-modal" class="btn-run" style="padding: 6px 14px; font-size: 0.82rem;" onclick="runScriptFromModal()">▶ Run in Sandbox</button>
+                <button onclick="closeScriptDetailModal()" class="modal-btn modal-btn-cancel">Close</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

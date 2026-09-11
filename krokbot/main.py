@@ -2,7 +2,7 @@ import sys
 import threading
 import uvicorn
 import time
-from krokbot.bridge.main import app as bridge_app
+from krokbot.bridge.main import app as bridge_app, set_scheduler_manager as bridge_set_scheduler_manager
 from krokbot.dashboard.server import app as dashboard_app, export_health_report, set_scheduler_manager, set_agent_instance
 from krokbot.agent.core import KrokBotAgent
 from krokbot.scheduler.manager import CronSchedulerManager
@@ -19,11 +19,17 @@ def main():
     scheduler = CronSchedulerManager()
     scheduler.start()
     set_scheduler_manager(scheduler)
+    bridge_set_scheduler_manager(scheduler)
 
-    # 1. Start Host Bridge in background thread (port 8990)
-    print("[1/4] Starting Host API Bridge on http://localhost:8990 ...")
-    bridge_thread = threading.Thread(target=start_server, args=(bridge_app, 8990), daemon=True)
-    bridge_thread.start()
+    # 1. Start Host Bridge if running natively on host
+    import os
+    is_docker = os.path.exists("/.dockerenv") or os.getenv("IS_DOCKER")
+    if not is_docker:
+        print("[1/4] Starting Native Host API Bridge on http://localhost:8992 ...")
+        bridge_thread = threading.Thread(target=start_server, args=(bridge_app, 8992), daemon=True)
+        bridge_thread.start()
+    else:
+        print("[1/4] Containerized environment detected. Host Bridge routes to native host machine.")
 
     # 2. Start Web Dashboard in background thread (port 5150)
     print("[2/4] Starting Web Dashboard on http://localhost:5150 ...")
@@ -33,7 +39,7 @@ def main():
     time.sleep(1.5)
 
     # 3. Initialize and run KrokBot Agent
-    print("[3/4] Running KrokBot Health Diagnostic Task via Local Ollama...")
+    print("[3/4] Running KrokBot Health Diagnostic Task via Llama.cpp...")
     agent = KrokBotAgent(scheduler_manager=scheduler)
     set_agent_instance(agent)
     task_prompt = "Check workstation health, OS, storage, and active services, and output diagnostic summary."

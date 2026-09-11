@@ -5,26 +5,18 @@ services:
     restart: unless-stopped
     ports:
       - "5150:5150"
-      - "8990:8990"
+      - "8081:8081"
     volumes:
       - ./data:/app/data
+      - ./models:/app/models
+      - ./krokbot:/app/krokbot
+      - ./run_krokbot.py:/app/run_krokbot.py
+      - ./krokbot_config.yaml:/app/krokbot_config.yaml
       - ./krokbot_health_report.md:/app/krokbot_health_report.md
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - OLLAMA_HOST=http://host.docker.internal:11434
-      - LLAMACPP_HOST=http://llamacpp:8081
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      - llamacpp
+      - MODEL_PATH=/app/models/Qwen3-4B-Q4_K_M.gguf
+      - LLAMACPP_HOST=http://127.0.0.1:8081
+      - LLM_MODEL=qwen3-4b
+      - BRIDGE_URL=http://host.docker.internal:8992
 
-  llamacpp:
-    build:
-      context: .
-      dockerfile: Dockerfile.llamacpp
-    container_name: krokbot_llamacpp
-    restart: unless-stopped
-    ports:
-      - "8081:8081"
-    volumes:
-      - ./models:/app/models

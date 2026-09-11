@@ -1,0 +1,45 @@
+version: '1.0'
+model:
+  name: Qwen3 4B Instruct (Q4_K_M)
+  filename: Qwen3-4B-Q4_K_M.gguf
+  url: ''
+  context_size: 2048
+  chat_format: chatml
+  auto_download: true
+server:
+  host: 0.0.0.0
+  port: 8081
+  n_threads: 4
+agent:
+  dashboard_port: 5150
+  bridge_port: 8990
+  default_temperature: 0.2
+catalog:
+  qwen3-4b:
+    name: Qwen3 4B Instruct (Q4_K_M)
+    filename: Qwen3-4B-Q4_K_M.gguf
+    size_mb: 2380
+    chat_format: chatml
+    context_size: 2048
+    url: ''
+  qwen2.5-coder-1.5b:
+    name: Qwen2.5 Coder 1.5B Instruct (Q4_K_M)
+    filename: qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+    size_mb: 986
+    chat_format: chatml
+    context_size: 2048
+    url: https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+  llama-3.2-3b:
+    name: Llama 3.2 3B Instruct (Q4_K_M)
+    filename: Llama-3.2-3B-Instruct-Q4_K_M.gguf
+    size_mb: 2020
+    chat_format: llama-3
+    context_size: 4096
+    url: https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf
+  phi-3.5-mini:
+    name: Phi 3.5 Mini Instruct 3.8B (Q4_K_M)
+    filename: Phi-3.5-mini-instruct-Q4_K_M.gguf
+    size_mb: 2390
+    chat_format: chatml
+    context_size: 4096
+    url: https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf

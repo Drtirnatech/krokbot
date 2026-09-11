@@ -11,10 +11,10 @@ def test_scripting_intent_reconcile_flow(tmp_path, monkeypatch):
         "sys.exit(1)\n"
     )
     
-    # Mock Ollama chat to return the generated script block
+    # Mock Llama.cpp chat to return the generated script block
     monkeypatch.setattr(agent.client, "chat", lambda msgs: {"message": {"content": f"Here is the python script:\n\n```python\n{script_content}\n```"}})
     
-    res = agent.run_task("Create a Python script at ./reconcile.py in your working directory that reconciles ledgers and writes report.txt.")
+    res = agent.run_task("Create a Python script at ./reconcile.py in your working directory that reconciles ledgers and writes report.txt.", save_mode="saved")
     assert res["status"] == "success"
     assert (tmp_path / "reconcile.py").exists()
     assert (tmp_path / "report.txt").exists()
