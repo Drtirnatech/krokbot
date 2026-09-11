@@ -1,7 +1,7 @@
 version: '1.0'
 model:
-  name: Qwen3 4B Instruct (Q4_K_M)
-  filename: Qwen3-4B-Q4_K_M.gguf
+  name: Qwen2.5 Coder 1.5B Instruct (Q4_K_M)
+  filename: qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
   url: ''
   context_size: 2048
   chat_format: chatml
@@ -11,8 +11,8 @@ server:
   port: 8081
   n_threads: 4
 agent:
-  id: "krok-prime-01"
-  name: "KrokBot Prime Sentinel"
+  id: krok-prime-01
+  name: KrokBot Prime Sentinel
   dashboard_port: 5150
   bridge_port: 8990
   default_temperature: 0.2
