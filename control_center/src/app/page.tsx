@@ -154,6 +154,53 @@ export default function ControlCenterDashboard() {
     }
   };
 
+  const handleConfirmOption = async (optionValue: string) => {
+    if (!targetNode) return;
+    setCommandExecuting(true);
+    try {
+      const res = await fetch(`/api/fleet/nodes/${targetNode}/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: optionValue,
+          save_mode: optionValue,
+          agentId: targetAgent?.id,
+          port: targetAgent?.port
+        })
+      });
+      const data = await res.json();
+      setCommandOutput(data);
+      await fetchAuditLogs();
+    } catch (err: any) {
+      setCommandOutput({ status: 'error', message: err.message });
+    } finally {
+      setCommandExecuting(false);
+    }
+  };
+
+  const handleInlineConfirmOption = async (nodeId: string, agentId: string, port: number, optionValue: string) => {
+    setInlineExecuting(prev => ({ ...prev, [agentId]: true }));
+    try {
+      const res = await fetch(`/api/fleet/nodes/${nodeId}/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: optionValue,
+          save_mode: optionValue,
+          agentId,
+          port
+        })
+      });
+      const data = await res.json();
+      setInlineOutputs(prev => ({ ...prev, [agentId]: data }));
+      await fetchAuditLogs();
+    } catch (err: any) {
+      setInlineOutputs(prev => ({ ...prev, [agentId]: { status: 'error', message: err.message } }));
+    } finally {
+      setInlineExecuting(prev => ({ ...prev, [agentId]: false }));
+    }
+  };
+
   // Fetch Fleet Nodes & Status
   const fetchFleet = useCallback(async () => {
     try {
@@ -921,13 +968,63 @@ export default function ControlCenterDashboard() {
 
                                           {/* Inline Output Display */}
                                           {inlineOutputs[agent.id] && (
-                                            <div className="p-2.5 rounded bg-[#050806] border border-[#16231b] text-xs space-y-1">
+                                            <div className="p-2.5 rounded bg-[#050806] border border-[#16231b] text-xs space-y-2">
                                               <div className="flex justify-between text-[10px] text-[#5b7a6b]">
                                                 <span>INLINE EXECUTION RESULT</span>
                                                 <span className={inlineOutputs[agent.id].status === 'error' ? 'text-[#ff3344]' : 'text-[#00ff66]'}>
-                                                  {inlineOutputs[agent.id].status?.toUpperCase()}
+                                                  {inlineOutputs[agent.id].result?.status?.toUpperCase() || inlineOutputs[agent.id].status?.toUpperCase()}
                                                 </span>
                                               </div>
+
+                                              {/* Interactive Confirmation Options if required */}
+                                              {inlineOutputs[agent.id].result?.requires_confirmation && (
+                                                <div className="p-2.5 rounded bg-[#131f18] border border-[#00ff66]/40 space-y-2">
+                                                  <div className="text-[11px] font-bold text-[#ffb000] flex items-center gap-1.5">
+                                                    <span>⚠️ Confirmation Required:</span>
+                                                    <span className="text-white">{inlineOutputs[agent.id].result?.target_filename || 'Script'}</span>
+                                                  </div>
+                                                  <p className="text-[11px] text-[#a4c5b5]">
+                                                    {inlineOutputs[agent.id].result?.question || 'Please select whether to save this script for future runs or execute one-time only:'}
+                                                  </p>
+                                                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                                                    {inlineOutputs[agent.id].result?.options?.map((opt: any) => (
+                                                      <button
+                                                        key={opt.value}
+                                                        type="button"
+                                                        disabled={inlineExecuting[agent.id]}
+                                                        onClick={() => handleInlineConfirmOption(node.id, agent.id, agent.port, opt.value)}
+                                                        className={`px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer ${
+                                                          opt.value === 'saved' || opt.value === 'save'
+                                                            ? 'bg-[#00ff66] text-black hover:bg-[#1aff75] shadow-[0_0_8px_rgba(0,255,102,0.3)]'
+                                                            : 'bg-[#1b2a20] text-[#a4c5b5] hover:text-white border border-[#273d2f]'
+                                                        }`}
+                                                      >
+                                                        {opt.label}
+                                                      </button>
+                                                    )) || (
+                                                      <>
+                                                        <button
+                                                          type="button"
+                                                          disabled={inlineExecuting[agent.id]}
+                                                          onClick={() => handleInlineConfirmOption(node.id, agent.id, agent.port, 'saved')}
+                                                          className="px-3 py-1.5 rounded text-xs font-bold bg-[#00ff66] text-black hover:bg-[#1aff75] cursor-pointer"
+                                                        >
+                                                          💾 Save for Future Execution
+                                                        </button>
+                                                        <button
+                                                          type="button"
+                                                          disabled={inlineExecuting[agent.id]}
+                                                          onClick={() => handleInlineConfirmOption(node.id, agent.id, agent.port, 'one_time')}
+                                                          className="px-3 py-1.5 rounded text-xs font-bold bg-[#1b2a20] text-[#a4c5b5] hover:text-white border border-[#273d2f] cursor-pointer"
+                                                        >
+                                                          ⚡ One-Time Only
+                                                        </button>
+                                                      </>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              )}
+
                                               <pre className="text-[11px] text-[#a4c5b5] font-mono whitespace-pre-wrap max-h-36 overflow-y-auto">
                                                 {typeof inlineOutputs[agent.id].result?.response === 'string'
                                                   ? inlineOutputs[agent.id].result.response
@@ -1026,14 +1123,64 @@ export default function ControlCenterDashboard() {
 
             {/* Execution Result Box */}
             {commandOutput && (
-              <div className="mt-3 p-3 rounded bg-[#070b09] border border-[#1c2c22] max-h-48 overflow-y-auto space-y-1 text-xs">
+              <div className="mt-3 p-3 rounded bg-[#070b09] border border-[#1c2c22] space-y-2 text-xs">
                 <div className="text-[10px] text-[#5b7a6b] flex justify-between border-b border-[#141f19] pb-1">
                   <span>DISPATCH RESULT</span>
                   <span className={commandOutput.status === 'error' ? 'text-[#ff3344]' : 'text-[#00ff66]'}>
-                    {commandOutput.status?.toUpperCase()}
+                    {commandOutput.result?.status?.toUpperCase() || commandOutput.status?.toUpperCase()}
                   </span>
                 </div>
-                <pre className="text-[11px] text-[#a4c5b5] whitespace-pre-wrap font-mono pt-1">
+
+                {/* If agent requires confirmation, render interactive options */}
+                {commandOutput.result?.requires_confirmation && (
+                  <div className="p-3 rounded bg-[#131f18] border border-[#00ff66]/40 space-y-2.5 my-2">
+                    <div className="text-xs font-bold text-[#ffb000] flex items-center gap-1.5">
+                      <span>⚠️ Confirmation Required:</span>
+                      <span className="text-white">{commandOutput.result?.target_filename || 'Script'}</span>
+                    </div>
+                    <p className="text-[11px] text-[#a4c5b5]">
+                      {commandOutput.result?.question || 'Please choose whether to save this script to the asset library or execute one-time only in sandbox.'}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      {commandOutput.result?.options?.map((opt: any) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          disabled={commandExecuting}
+                          onClick={() => handleConfirmOption(opt.value)}
+                          className={`px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                            opt.value === 'saved' || opt.value === 'save'
+                              ? 'bg-[#00ff66] text-black hover:bg-[#1aff75] shadow-[0_0_10px_rgba(0,255,102,0.3)]'
+                              : 'bg-[#1a2b21] text-[#a4c5b5] hover:text-white border border-[#273d2f]'
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                        </button>
+                      )) || (
+                        <>
+                          <button
+                            type="button"
+                            disabled={commandExecuting}
+                            onClick={() => handleConfirmOption('saved')}
+                            className="px-3 py-1.5 rounded text-xs font-bold bg-[#00ff66] text-black hover:bg-[#1aff75] cursor-pointer"
+                          >
+                            💾 Save for Future Execution
+                          </button>
+                          <button
+                            type="button"
+                            disabled={commandExecuting}
+                            onClick={() => handleConfirmOption('one_time')}
+                            className="px-3 py-1.5 rounded text-xs font-bold bg-[#1a2b21] text-[#a4c5b5] hover:text-white border border-[#273d2f] cursor-pointer"
+                          >
+                            ⚡ One-Time Only
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <pre className="text-[11px] text-[#a4c5b5] whitespace-pre-wrap font-mono pt-1 max-h-48 overflow-y-auto">
                   {typeof commandOutput.result?.response === 'string'
                     ? commandOutput.result.response
                     : JSON.stringify(commandOutput, null, 2)}

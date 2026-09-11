@@ -453,7 +453,7 @@ class KrokBotAgent:
             # Determine whether user specified save vs one-time
             effective_save_mode = save_mode
             if not effective_save_mode:
-                if any(w in prompt_clean for w in ["save", "saved", "store", "future execution", "library"]):
+                if any(w in prompt_clean for w in ["save", "saved", "store", "future execution", "library", "cron", "schedule", "scheduled", "recurring", "every", "keep"]):
                     effective_save_mode = "saved"
                 elif any(w in prompt_clean for w in ["one-time", "one time", "once", "temporary", "temp only"]):
                     effective_save_mode = "one_time"

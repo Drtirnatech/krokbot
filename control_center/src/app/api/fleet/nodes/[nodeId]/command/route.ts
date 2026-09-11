@@ -14,13 +14,13 @@ export async function POST(
     }
 
     const body = await req.json();
-    const { prompt, agentId, port } = body;
+    const { prompt, agentId, port, save_mode } = body;
     if (!prompt) {
       return NextResponse.json({ status: 'error', message: 'Prompt is required' }, { status: 400 });
     }
 
     const start = Date.now();
-    const result = await agentClient.sendPrompt(node.ip_address, prompt, port, agentId);
+    const result = await agentClient.sendPrompt(node.ip_address, prompt, port, agentId, save_mode);
     const duration = Date.now() - start;
 
     // Record audit log

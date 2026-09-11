@@ -93,11 +93,11 @@ class WorkflowPlanner:
         
         # Check for sequenced markers
         has_numbered_steps = bool(re.search(r"(^|\n|\s)(1\.|step\s*1)", prompt_lower) and re.search(r"(^|\n|\s)(2\.|step\s*2)", prompt_lower))
-        has_cron_marker = any(k in prompt_lower for k in ["cron", "schedule", "run every", "every 2 min", "every 5 min"])
-        has_script_marker = any(k in prompt_lower for k in ["create", "generate", "write", "save"]) and any(k in prompt_lower for k in ["script", "python", ".py"])
+        has_cron_marker = any(k in prompt_lower for k in ["cron", "schedule", "scheduled", "run every", "every 2 min", "every 5 min", "every "])
+        has_script_marker = any(k in prompt_lower for k in ["create", "generate", "write", "save", "make", "synthesize"]) and any(k in prompt_lower for k in ["script", "python", ".py"])
         
         # Case 1: Sequenced Script Creation + Cron Deployment
-        if (has_numbered_steps or "then" in prompt_lower or "once proven" in prompt_lower or "and schedule" in prompt_lower) and has_script_marker and has_cron_marker:
+        if (has_script_marker and has_cron_marker) or ((has_numbered_steps or "then" in prompt_lower or "once proven" in prompt_lower or "and schedule" in prompt_lower) and has_script_marker and has_cron_marker):
             filename = self.infer_script_filename(prompt)
             cron_expr = self.parse_cron_timing(prompt)
             

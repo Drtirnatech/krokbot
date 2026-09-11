@@ -145,16 +145,19 @@ export const agentClient = {
     return res.json();
   },
 
-  async sendPrompt(endpointUrl: string, prompt: string, agentPort?: number, agentId?: string) {
+  async sendPrompt(endpointUrl: string, prompt: string, agentPort?: number, agentId?: string, saveMode?: string) {
     const cleanUrl = endpointUrl.replace(/\/+$/, '');
 
     // 1. If agentId is specified and not primary, route through Gateway /api/agents/{agentId}/chat
     if (agentId && agentId !== 'krok-prime-01') {
       try {
+        const bodyPayload: any = { prompt };
+        if (saveMode) bodyPayload.save_mode = saveMode;
+
         const res = await fetch(`${cleanUrl}/api/agents/${encodeURIComponent(agentId)}/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt }),
+          body: JSON.stringify(bodyPayload),
           signal: AbortSignal.timeout(35000)
         });
         if (res.ok) {
@@ -163,7 +166,11 @@ export const agentClient = {
             status: data.status || 'success',
             response: data.reply || data.response || data.raw_reply || '',
             thinking: data.thinking || '',
-            metrics: data.metrics || {}
+            metrics: data.metrics || {},
+            requires_confirmation: data.requires_confirmation || false,
+            question: data.question || null,
+            options: data.options || null,
+            target_filename: data.target_filename || null
           };
         }
       } catch {
@@ -179,10 +186,13 @@ export const agentClient = {
       targetUrl = parsed.toString().replace(/\/+$/, '');
     }
 
+    const bodyPayload: any = { prompt };
+    if (saveMode) bodyPayload.save_mode = saveMode;
+
     const res = await fetch(`${targetUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify(bodyPayload),
       signal: AbortSignal.timeout(35000)
     });
     if (!res.ok) {
@@ -194,7 +204,11 @@ export const agentClient = {
       status: data.status || 'success',
       response: data.reply || data.response || data.raw_reply || '',
       thinking: data.thinking || '',
-      metrics: data.metrics || {}
+      metrics: data.metrics || {},
+      requires_confirmation: data.requires_confirmation || false,
+      question: data.question || null,
+      options: data.options || null,
+      target_filename: data.target_filename || null
     };
   }
 };
