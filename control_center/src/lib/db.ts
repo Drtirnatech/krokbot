@@ -120,6 +120,10 @@ export const dbService = {
     return nodes;
   },
 
+  listNodes(): NodeRecord[] {
+    return this.getNodes();
+  },
+
   getNode(id: string): NodeRecord | null {
     const db = getDb();
     const query = db.prepare('SELECT * FROM nodes WHERE id = ?');

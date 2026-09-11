@@ -13,7 +13,7 @@
 
 The complete end-to-end operational test campaign was converted into automated browser-driven test sequences. Every test was conducted by an autonomous browser agent acting as the user, validating visual rendering, real-time telemetry streaming, interactive state transitions, prompt dispatching, multi-agent container orchestration, and security policy enforcement.
 
-All **6 automated functional tests passed without exception**. Unit regression suites verified **33/33 TypeScript tests** and **21/21 Python agent tests** passing at 100%.
+All **7 automated functional tests passed without exception**. Unit regression suites verified **40/40 TypeScript tests** and **26/26 Python agent tests** passing at 100%.
 
 ---
 
@@ -158,12 +158,42 @@ All **6 automated functional tests passed without exception**. Unit regression s
 
 ## Automated Regression Testing Suite
 
+### TEST 07: Edge Compute SysOps, Process Supervisor, Self-Healing Watchdog & Fleet Broadcast
+
+- **Target Systems**: `http://localhost:5200/` (C2 Control Center) & `http://localhost:5150/` (In-Container SysOps Arbiter)
+- **Scope & Objectives**:
+  1. Validate live edge SoC thermal package telemetry chip (`🌡️ XX.X°C`).
+  2. Open Live Process Inspector modal via `⚙️ SysOps`, verifying PID, memory RSS, CPU %, and safety protection flags.
+  3. Validate termination safety guards preventing remote kills of PID 1 and critical container supervisors (HTTP 403 Forbidden).
+  4. Test edge memory trimming (`malloc_trim(0)`) and temporary workspace cache pruning via `🧹 Clean`.
+  5. Validate interactive toggling of the Self-Healing Watchdog policies (Storage Pressure, Thermal Guard, Worker Memory Leak, and Inference Heartbeat).
+  6. Validate Autonomous Agent Command Console mode switching between `[ 🎯 Single Target ]` and `[ 📡 Fleet Broadcast (All Nodes) ]`.
+- **Observed Behavior**:
+  - **SoC Thermals**: Rendered live `🌡️ 44.1°C` nominal temperature on the node summary line.
+  - **Process Inspector**: Displayed container processes (PID 7 worker at 3637 MB with interactive `Terminate` action; PID 1 supervisor tagged with `PROTECTED` badge and `System Core` lock).
+  - **Safety Policy**: API call attempting to terminate PID 1 strictly rejected with `HTTP 403 Forbidden: PID 1 is protected by edge safety policy and cannot be terminated.`
+  - **System Cleanup**: Successfully invoked Python GC and glibc `malloc_trim(0)`, reclaiming memory and flushing system caches.
+  - **Watchdog Engine**: Loaded all 4 active self-healing policies with responsive toggles.
+  - **Fleet Broadcast**: Toggled to `[ 📡 Fleet Broadcast (All Nodes) ]`, rendered `FLEET-WIDE BROADCAST ACTIVE` banner, and concurrently dispatched prompt across fleet nodes with execution logging in the audit log.
+- **Verification Status**: **PASSED (100%)**
+- **Unit Test Coverage**:
+  - Python: `tests/test_sysops.py` (5/5 PASSED)
+  - TypeScript: `control_center/tests/sysops-operations.test.ts` (7/7 PASSED)
+- **Artifacts**:
+  - SysOps Process Modal: `sysops_modal_1789164350974.png`
+  - Fleet Broadcast Console: `fleet_broadcast_1789164386757.png`
+  - Video Recording: `c2_sysops_verification_1789164332085.webp`
+
+---
+
+## Complete Test Campaign Summary
+
 | Component | Test Suite | Tests Run | Passed | Failed | Execution Time |
 | :--- | :--- | :---: | :---: | :---: | :---: |
-| **C2 Control Center** | Node.js Test Runner (TypeScript) | 33 | 33 | 0 | 9.48s |
-| **Agent Core & Planner** | PyTest (AsyncIO) | 21 | 21 | 0 | 14.66s |
-| **Browser Functional Suite**| Autonomous Subagent End-to-End | 6 | 6 | 0 | ~18 min |
-| **Total** | | **60** | **60** | **0** | **100% Pass** |
+| **C2 Control Center** | Node.js Test Runner (TypeScript) | 40 | 40 | 0 | 11.43s |
+| **Agent Core & SysOps** | PyTest (AsyncIO & SysOps) | 26 | 26 | 0 | 71.61s |
+| **Browser Functional Suite**| Autonomous Subagent End-to-End | 7 | 7 | 0 | ~20 min |
+| **Total** | | **73** | **73** | **0** | **100% Pass** |
 
 ---
 

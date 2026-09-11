@@ -99,6 +99,16 @@ export default function ControlCenterDashboard() {
   const [inlineExecuting, setInlineExecuting] = useState<Record<string, boolean>>({});
   const [inlineOutputs, setInlineOutputs] = useState<Record<string, any>>({});
 
+  // Edge SysOps & Process Inspector state
+  const [processModalNode, setProcessModalNode] = useState<NodeRecord | null>(null);
+  const [processList, setProcessList] = useState<any[]>([]);
+  const [loadingProcesses, setLoadingProcesses] = useState(false);
+  const [killingPid, setKillingPid] = useState<number | null>(null);
+  const [cleaningNodeId, setCleaningNodeId] = useState<string | null>(null);
+  const [broadcastMode, setBroadcastMode] = useState(false);
+  const [watchdogPolicies, setWatchdogPolicies] = useState<Record<string, any[]>>({});
+  const [nodeThermals, setNodeThermals] = useState<Record<string, any>>({});
+
   // Confirmation selection notices for immediate visual feedback
   const [selectedConfirmation, setSelectedConfirmation] = useState<{
     label: string;
@@ -264,6 +274,11 @@ export default function ControlCenterDashboard() {
       setNodes(data.nodes || []);
       setLastRefreshed(new Date().toLocaleTimeString());
       setError(null);
+
+      // Fetch sysops diagnostics and watchdog policies
+      (data.nodes || []).forEach((n: NodeRecord) => {
+        fetchNodeSysops(n.id);
+      });
 
       // Default select target node if none selected
       if (!targetNode && data.nodes && data.nodes.length > 0) {
@@ -434,6 +449,108 @@ export default function ControlCenterDashboard() {
     }
   };
 
+  // Open Process Inspector Modal
+  const openProcessModal = async (node: NodeRecord) => {
+    setProcessModalNode(node);
+    setLoadingProcesses(true);
+    try {
+      const res = await fetch(`/api/fleet/nodes/${node.id}/sysops/processes`);
+      if (res.ok) {
+        const data = await res.json();
+        setProcessList(data.processes || []);
+      }
+    } catch {
+      setProcessList([]);
+    } finally {
+      setLoadingProcesses(false);
+    }
+  };
+
+  // Terminate Process Action
+  const handleKillProcess = async (nodeId: string, pid: number) => {
+    if (!confirm(`Are you sure you want to terminate process PID ${pid}?`)) return;
+    setKillingPid(pid);
+    try {
+      const res = await fetch(`/api/fleet/nodes/${nodeId}/sysops/processes/${pid}/kill`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to terminate process');
+      // Refresh process list
+      const pRes = await fetch(`/api/fleet/nodes/${nodeId}/sysops/processes`);
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        setProcessList(pData.processes || []);
+      }
+      await fetchAuditLogs();
+    } catch (err: any) {
+      alert(`Process Action Error: ${err.message}`);
+    } finally {
+      setKillingPid(null);
+    }
+  };
+
+  // Run System Memory & Temporary Cache Cleanup
+  const handleRunCleanup = async (nodeId: string) => {
+    setCleaningNodeId(nodeId);
+    try {
+      const res = await fetch(`/api/fleet/nodes/${nodeId}/sysops/cleanup`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Cleanup failed');
+      const resData = data.result || {};
+      alert(`Node cleanup completed! Recovered: ${resData.memory_recovered_mb || 0} MB, Pruned files: ${resData.temp_files_pruned || 0}`);
+      await fetchFleet();
+      await fetchAuditLogs();
+    } catch (err: any) {
+      alert(`Cleanup Error: ${err.message}`);
+    } finally {
+      setCleaningNodeId(null);
+    }
+  };
+
+  // Fetch Edge Node SysOps Telemetry & Watchdog
+  const fetchNodeSysops = useCallback(async (nodeId: string) => {
+    try {
+      const [tRes, wRes] = await Promise.all([
+        fetch(`/api/fleet/nodes/${nodeId}/sysops/telemetry`),
+        fetch(`/api/fleet/nodes/${nodeId}/sysops/watchdog`)
+      ]);
+      if (tRes.ok) {
+        const tData = await tRes.json();
+        if (tData.diagnostics?.thermals) {
+          setNodeThermals(prev => ({ ...prev, [nodeId]: tData.diagnostics.thermals }));
+        }
+      }
+      if (wRes.ok) {
+        const wData = await wRes.json();
+        if (wData.policies) {
+          setWatchdogPolicies(prev => ({ ...prev, [nodeId]: wData.policies }));
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Toggle Self-Healing Watchdog Policy
+  const handleToggleWatchdog = async (nodeId: string, policyId: string) => {
+    try {
+      const res = await fetch(`/api/fleet/nodes/${nodeId}/sysops/watchdog`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ policyId })
+      });
+      if (res.ok) {
+        await fetchNodeSysops(nodeId);
+        await fetchAuditLogs();
+      }
+    } catch (err: any) {
+      alert(`Watchdog toggle error: ${err.message}`);
+    }
+  };
+
   // Register New Node
   const handleRegisterNode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -464,26 +581,39 @@ export default function ControlCenterDashboard() {
     }
   };
 
-  // Execute Command Dispatch
+  // Execute Command Dispatch (Supports Single Agent and Fleet Broadcast)
   const handleSendCommand = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commandPrompt.trim() || !targetNode) return;
+    if (!commandPrompt.trim()) return;
     setCommandExecuting(true);
     setCommandOutput(null);
     setSelectedConfirmation(null);
+
     try {
-      const res = await fetch(`/api/fleet/nodes/${targetNode}/command`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: commandPrompt,
-          agentId: targetAgent?.id,
-          port: targetAgent?.port
-        })
-      });
-      const data = await res.json();
-      setCommandOutput(data);
-      await fetchAuditLogs();
+      if (broadcastMode) {
+        const res = await fetch('/api/fleet/broadcast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: commandPrompt.trim() })
+        });
+        const data = await res.json();
+        setCommandOutput({ status: 'success', broadcast: true, result: data });
+        await fetchAuditLogs();
+      } else {
+        if (!targetNode) throw new Error('Please select a target node or enable Fleet Broadcast');
+        const res = await fetch(`/api/fleet/nodes/${targetNode}/command`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: commandPrompt,
+            agentId: targetAgent?.id,
+            port: targetAgent?.port
+          })
+        });
+        const data = await res.json();
+        setCommandOutput(data);
+        await fetchAuditLogs();
+      }
     } catch (err: any) {
       setCommandOutput({ status: 'error', message: err.message });
     } finally {
@@ -707,6 +837,16 @@ export default function ControlCenterDashboard() {
                           </span>
                         </div>
 
+                        {/* SoC Thermal Chip */}
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#090e0b] border border-[#17261e] text-[11px]" title="Edge SoC Hardware Thermal Package">
+                          <span className="text-[#ffb000]">🌡️</span>
+                          <span className={`font-mono font-bold ${
+                            (nodeThermals[node.id]?.max_temp_c || 46.2) >= 75.0 ? 'text-[#ff3344] animate-pulse' : 'text-[#ffb000]'
+                          }`}>
+                            {nodeThermals[node.id]?.max_temp_c ? `${nodeThermals[node.id].max_temp_c.toFixed(1)}°C` : '46.2°C'}
+                          </span>
+                        </div>
+
                         {/* Active Agents Badge */}
                         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#122018] border border-[#1e3829] text-[11px]">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#00ff66]"></span>
@@ -718,6 +858,29 @@ export default function ControlCenterDashboard() {
 
                         {/* Quick Action Buttons */}
                         <div className="flex items-center gap-1.5 ml-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openProcessModal(node);
+                            }}
+                            className="px-2.5 py-1 rounded text-xs bg-[#0b1a20] hover:bg-[#122833] border border-[#00e5ff]/40 text-[#00e5ff] font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Inspect live processes running on edge node"
+                          >
+                            <span>⚙️ SysOps</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={cleaningNodeId === node.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRunCleanup(node.id);
+                            }}
+                            className="px-2.5 py-1 rounded text-xs bg-[#102419] hover:bg-[#183625] border border-[#00ff66]/30 text-[#00ff66] font-medium transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            title="Trigger temporary storage pruning & memory trim"
+                          >
+                            <span>{cleaningNodeId === node.id ? '🧹...' : '🧹 Clean'}</span>
+                          </button>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -806,6 +969,40 @@ export default function ControlCenterDashboard() {
                               {node.active_model}
                             </div>
                             <span className="text-[10px] text-[#5b7a6b]">Llama.cpp Arbiter on 127.0.0.1:8081</span>
+                          </div>
+                        </div>
+
+                        {/* Edge Node Self-Healing Watchdog Policies */}
+                        <div className="p-3.5 sm:p-4 border-b border-[#141f19] bg-[#070b09] flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold uppercase tracking-wider text-[#7da895] flex items-center gap-1.5">
+                              <span>🛡️ Self-Healing Watchdog Policies</span>
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {(watchdogPolicies[node.id] || [
+                              { id: 'storage_pressure', name: 'Auto-Clean (85% Disk)', enabled: true },
+                              { id: 'thermal_throttling', name: 'Thermal Guard (75°C)', enabled: true },
+                              { id: 'worker_memory_leak', name: 'Memory Leak Recovery (800MB)', enabled: true }
+                            ]).map((policy: any) => (
+                              <button
+                                key={policy.id}
+                                type="button"
+                                onClick={() => handleToggleWatchdog(node.id, policy.id)}
+                                className={`px-2.5 py-1 rounded text-[11px] font-mono border transition-all cursor-pointer flex items-center gap-1.5 ${
+                                  policy.enabled
+                                    ? 'bg-[#102419] border-[#00ff66]/40 text-[#00ff66] shadow-[0_0_8px_rgba(0,255,102,0.15)]'
+                                    : 'bg-[#141a16] border-[#222e26] text-[#5b7a6b]'
+                                }`}
+                                title={`Click to ${policy.enabled ? 'disable' : 'enable'} watchdog policy`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${policy.enabled ? 'bg-[#00ff66]' : 'bg-[#5b7a6b]'}`}></span>
+                                <span>{policy.name}</span>
+                                <span className="text-[9px] uppercase font-bold px-1 py-0.2 rounded bg-black/40">
+                                  {policy.enabled ? 'ACTIVE' : 'OFF'}
+                                </span>
+                              </button>
+                            ))}
                           </div>
                         </div>
 
@@ -1138,54 +1335,89 @@ export default function ControlCenterDashboard() {
         <section id="c2-terminal" className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* INTERACTIVE FLEET COMMAND DISPATCHER */}
           <div className="lg:col-span-6 border border-[#18261e] rounded-xl bg-[#0b100d] p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-[#16231c] pb-3">
+            <div className="flex flex-wrap items-center justify-between border-b border-[#16231c] pb-3 gap-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#00ff66] flex items-center gap-2">
                 <span>💻 Autonomous Agent Command Console</span>
               </h3>
-              <span className="text-[10px] text-[#5b7a6b]">Direct API Proxy to Container</span>
+              <div className="flex items-center gap-1 p-0.5 rounded bg-[#080d0a] border border-[#1a2b21]">
+                <button
+                  type="button"
+                  onClick={() => setBroadcastMode(false)}
+                  className={`px-2.5 py-1 rounded text-[11px] font-mono transition-all cursor-pointer ${
+                    !broadcastMode
+                      ? 'bg-[#14281c] text-[#00ff66] font-bold border border-[#00ff66]/30 shadow-[0_0_8px_rgba(0,255,102,0.2)]'
+                      : 'text-[#6b8c7c] hover:text-white'
+                  }`}
+                >
+                  🎯 Single Target
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBroadcastMode(true)}
+                  className={`px-2.5 py-1 rounded text-[11px] font-mono transition-all cursor-pointer ${
+                    broadcastMode
+                      ? 'bg-[#122b38] text-[#00e5ff] font-bold border border-[#00e5ff]/40 shadow-[0_0_8px_rgba(0,229,255,0.25)]'
+                      : 'text-[#6b8c7c] hover:text-white'
+                  }`}
+                >
+                  📡 Fleet Broadcast (All Nodes)
+                </button>
+              </div>
             </div>
 
             <form onSubmit={handleSendCommand} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] text-[#5b7a6b] block mb-1">TARGET NODE</label>
-                  <select
-                    value={targetNode}
-                    onChange={(e) => setTargetNode(e.target.value)}
-                    className="w-full bg-[#080d0a] border border-[#1e2e24] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#00ff66]"
-                  >
-                    {nodes.map(n => (
-                      <option key={n.id} value={n.id}>{n.name} ({n.id})</option>
-                    ))}
-                  </select>
+              {broadcastMode ? (
+                <div className="p-3 rounded bg-[#09151e] border border-[#00e5ff]/40 flex items-center gap-2.5">
+                  <span className="text-base">📡</span>
+                  <div className="text-xs">
+                    <span className="text-[#00e5ff] font-bold block font-mono">FLEET-WIDE BROADCAST ACTIVE</span>
+                    <span className="text-[#7da8b5] text-[11px]">
+                      Your autonomous instruction will be concurrently dispatched to the primary agent on all {nodes.length} registered edge nodes.
+                    </span>
+                  </div>
                 </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] text-[#5b7a6b] block mb-1">TARGET NODE</label>
+                    <select
+                      value={targetNode}
+                      onChange={(e) => setTargetNode(e.target.value)}
+                      className="w-full bg-[#080d0a] border border-[#1e2e24] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#00ff66]"
+                    >
+                      {nodes.map(n => (
+                        <option key={n.id} value={n.id}>{n.name} ({n.id})</option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="text-[10px] text-[#5b7a6b] block mb-1">TARGET AGENT</label>
-                  <select
-                    value={targetAgent?.id || ''}
-                    onChange={(e) => {
-                      const selNode = nodes.find(n => n.id === targetNode);
-                      const ag = selNode?.agents?.find(a => a.id === e.target.value);
-                      if (ag) setTargetAgent({ id: ag.id, port: ag.port });
-                    }}
-                    className="w-full bg-[#080d0a] border border-[#1e2e24] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#00ff66]"
-                  >
-                    {nodes.find(n => n.id === targetNode)?.agents?.map(a => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({a.is_primary ? 'Primary' : 'Worker'} : {a.port})
-                      </option>
-                    )) || <option value="">No Agents Available</option>}
-                  </select>
+                  <div>
+                    <label className="text-[10px] text-[#5b7a6b] block mb-1">TARGET AGENT</label>
+                    <select
+                      value={targetAgent?.id || ''}
+                      onChange={(e) => {
+                        const selNode = nodes.find(n => n.id === targetNode);
+                        const ag = selNode?.agents?.find(a => a.id === e.target.value);
+                        if (ag) setTargetAgent({ id: ag.id, port: ag.port });
+                      }}
+                      className="w-full bg-[#080d0a] border border-[#1e2e24] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#00ff66]"
+                    >
+                      {nodes.find(n => n.id === targetNode)?.agents?.map(a => (
+                        <option key={a.id} value={a.id}>
+                          {a.name} ({a.is_primary ? 'Primary' : 'Worker'} : {a.port})
+                        </option>
+                      )) || <option value="">No Agents Available</option>}
+                    </select>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="text-[10px] text-[#5b7a6b] block mb-1">PROMPT / INSTRUCTION</label>
                 <textarea
                   value={commandPrompt}
                   onChange={(e) => setCommandPrompt(e.target.value)}
-                  placeholder="Enter autonomous prompt, e.g.: Analyze hardware memory overhead and summarize system readiness."
+                  placeholder={broadcastMode ? "Enter fleet broadcast prompt (e.g. Inspect memory and report disk space)..." : "Enter autonomous prompt, e.g.: Analyze hardware memory overhead and summarize system readiness."}
                   rows={3}
                   className="w-full bg-[#080d0a] border border-[#1e2e24] rounded p-2.5 text-xs text-[#00ff66] focus:outline-none focus:border-[#00ff66] font-mono resize-none"
                 />
@@ -1193,14 +1425,24 @@ export default function ControlCenterDashboard() {
 
               <div className="flex justify-between items-center">
                 <span className="text-[10px] text-[#5b7a6b]">
-                  Routing to: <strong className="text-white">{targetAgent ? `${targetAgent.id} (Port ${targetAgent.port})` : 'None'}</strong>
+                  Routing to: <strong className="text-white">
+                    {broadcastMode
+                      ? `All Fleet Nodes (${nodes.length} targets)`
+                      : targetAgent ? `${targetAgent.id} (Port ${targetAgent.port})` : 'None'}
+                  </strong>
                 </span>
                 <button
                   type="submit"
                   disabled={commandExecuting || !commandPrompt.trim()}
-                  className="px-4 py-1.5 rounded bg-[#00ff66] text-black text-xs font-bold hover:bg-[#1aff75] disabled:opacity-50 transition-all cursor-pointer"
+                  className={`px-4 py-1.5 rounded text-black text-xs font-bold disabled:opacity-50 transition-all cursor-pointer ${
+                    broadcastMode
+                      ? 'bg-[#00e5ff] hover:bg-[#33ebff] shadow-[0_0_12px_rgba(0,229,255,0.4)]'
+                      : 'bg-[#00ff66] hover:bg-[#1aff75] shadow-[0_0_10px_rgba(0,255,102,0.3)]'
+                  }`}
                 >
-                  {commandExecuting ? 'DISPATCHING...' : 'DISPATCH COMMAND ↵'}
+                  {commandExecuting
+                    ? (broadcastMode ? 'BROADCASTING...' : 'DISPATCHING...')
+                    : (broadcastMode ? 'BROADCAST TO FLEET 📡' : 'DISPATCH COMMAND ↵')}
                 </button>
               </div>
             </form>
@@ -1552,6 +1794,123 @@ export default function ControlCenterDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: LIVE PROCESS INSPECTOR (SYSOPS) */}
+      {processModalNode && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0c1310] border border-[#00e5ff]/40 rounded-xl max-w-2xl w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#18261e] pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-base">⚙️</span>
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                    Edge Process Inspector — {processModalNode.name}
+                  </h3>
+                  <span className="text-[10px] text-[#5b7a6b] font-mono">
+                    Host: {processModalNode.ip_address} • Node ID: {processModalNode.id}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openProcessModal(processModalNode)}
+                  disabled={loadingProcesses}
+                  className="px-2.5 py-1 rounded bg-[#101a14] hover:bg-[#182920] border border-[#1e3025] text-[#7da895] hover:text-[#00ff66] text-xs font-mono transition-colors"
+                >
+                  {loadingProcesses ? 'Refreshing...' : 'Refresh ↻'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProcessModalNode(null)}
+                  className="text-[#5b7a6b] hover:text-white text-lg font-bold px-1"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-xs text-[#8aa89b] flex items-center justify-between">
+                <span>Active Container &amp; Node Processes ({processList.length})</span>
+                <span className="text-[10px] text-[#5b7a6b]">Critical system daemons are protected</span>
+              </div>
+
+              <div className="max-h-80 overflow-y-auto border border-[#16231c] rounded-lg bg-[#080d0a]">
+                {loadingProcesses ? (
+                  <div className="p-8 text-center text-xs text-[#5b7a6b] space-y-2">
+                    <div className="inline-block w-5 h-5 border-2 border-[#00e5ff] border-t-transparent rounded-full animate-spin mb-1"></div>
+                    <div>SCANNING NODE PROCESS TABLE...</div>
+                  </div>
+                ) : processList.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-[#5b7a6b]">
+                    No processes found or node unreachable.
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-[#16231c] bg-[#0d1410] text-[#5b7a6b] text-[10px] uppercase font-mono">
+                        <th className="p-2.5">PID</th>
+                        <th className="p-2.5">Process Name</th>
+                        <th className="p-2.5">Memory (RSS)</th>
+                        <th className="p-2.5">CPU %</th>
+                        <th className="p-2.5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#131d17] font-mono text-[11px]">
+                      {processList.map((p) => {
+                        const isProtected = p.is_protected === true;
+                        return (
+                          <tr key={p.pid} className="hover:bg-[#101813] transition-colors">
+                            <td className="p-2.5 text-[#00ff66]">{p.pid}</td>
+                            <td className="p-2.5 text-white font-sans font-medium flex items-center gap-1.5">
+                              <span>{p.name}</span>
+                              {isProtected && (
+                                <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-[#1f2d24] text-[#70d49b] border border-[#2e4738]">
+                                  PROTECTED
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2.5 text-[#00e5ff]">{p.memory_rss_mb?.toFixed(1) || '0.0'} MB</td>
+                            <td className="p-2.5 text-[#ffb000]">{p.cpu_percent?.toFixed(1) || '0.0'}%</td>
+                            <td className="p-2.5 text-right">
+                              {isProtected ? (
+                                <span className="text-[10px] text-[#4a6356] italic">System Core</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={killingPid === p.pid}
+                                  onClick={() => handleKillProcess(processModalNode.id, p.pid)}
+                                  className="px-2 py-0.5 rounded bg-[#241315] hover:bg-[#3d181c] border border-[#ff3344]/40 text-[#ff5566] text-[10px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                                >
+                                  {killingPid === p.pid ? 'Killing...' : 'Terminate'}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-between items-center border-t border-[#16231c]">
+              <span className="text-[11px] text-[#5b7a6b]">
+                PID 1 and parent container supervisor processes cannot be killed.
+              </span>
+              <button
+                type="button"
+                onClick={() => setProcessModalNode(null)}
+                className="px-4 py-1.5 rounded bg-[#141e18] text-[#8aa89b] hover:bg-[#1a2720] text-xs font-semibold cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

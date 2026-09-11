@@ -214,5 +214,58 @@ export const agentClient = {
       original_prompt: prompt,
       exit_code: data.sandbox_output?.exit_code ?? (data.exit_code ?? 0)
     };
+  },
+
+  async fetchSysopsTelemetry(endpointUrl: string) {
+    const cleanUrl = endpointUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/sysops/telemetry`, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) throw new Error(`Failed to fetch sysops telemetry: ${res.statusText}`);
+    return res.json();
+  },
+
+  async fetchSysopsProcesses(endpointUrl: string) {
+    const cleanUrl = endpointUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/sysops/processes`, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) throw new Error(`Failed to fetch processes: ${res.statusText}`);
+    return res.json();
+  },
+
+  async killSysopsProcess(endpointUrl: string, pid: number, force: boolean = false) {
+    const cleanUrl = endpointUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/sysops/processes/${pid}/kill?force=${force}`, {
+      method: 'POST'
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      const error: any = new Error(err.detail || err.message || 'Kill process failed');
+      error.status = res.status;
+      throw error;
+    }
+    return res.json();
+  },
+
+  async runSysopsCleanup(endpointUrl: string) {
+    const cleanUrl = endpointUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/sysops/cleanup`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error(`Cleanup failed: ${res.statusText}`);
+    return res.json();
+  },
+
+  async fetchWatchdogPolicies(endpointUrl: string) {
+    const cleanUrl = endpointUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/sysops/watchdog/policies`, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) throw new Error(`Failed to fetch watchdog policies: ${res.statusText}`);
+    return res.json();
+  },
+
+  async toggleWatchdogPolicy(endpointUrl: string, policyId: string) {
+    const cleanUrl = endpointUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/sysops/watchdog/policies/${encodeURIComponent(policyId)}/toggle`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error(`Failed to toggle policy: ${res.statusText}`);
+    return res.json();
   }
 };

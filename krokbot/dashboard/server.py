@@ -860,3 +860,70 @@ def export_health_report(filepath: str, report_content: str, metrics: Dict[str, 
 """
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(md_text)
+
+
+# =========================================================
+# Practical Edge Compute SysOps & Watchdog Endpoints
+# =========================================================
+@app.get("/api/sysops/telemetry")
+@app.get("/api/v1/sysops/telemetry")
+def get_sysops_telemetry():
+    from krokbot.sysops.diagnostics import get_edge_diagnostics
+    from krokbot.sysops.watchdog import get_self_healing_watchdog
+    diag = get_edge_diagnostics()
+    data = diag.get_full_diagnostics()
+    watchdog = get_self_healing_watchdog()
+    remediations = watchdog.evaluate_health()
+    data["remediations_triggered"] = remediations
+    return {"status": "success", "diagnostics": data}
+
+@app.get("/api/sysops/processes")
+@app.get("/api/v1/sysops/processes")
+def get_sysops_processes(limit: int = 40):
+    from krokbot.sysops.processes import get_process_manager
+    mgr = get_process_manager()
+    procs = mgr.list_processes(limit=limit)
+    return {"status": "success", "processes": procs}
+
+@app.post("/api/sysops/processes/{pid}/kill")
+def kill_sysops_process(pid: int, force: bool = False):
+    from krokbot.sysops.processes import get_process_manager
+    mgr = get_process_manager()
+    try:
+        res = mgr.terminate_process(pid, force=force)
+        return {"status": "success", "result": res}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/sysops/cleanup")
+def run_sysops_cleanup():
+    from krokbot.sysops.processes import get_process_manager
+    mgr = get_process_manager()
+    res = mgr.run_system_cleanup()
+    return {"status": "success", "result": res}
+
+@app.get("/api/sysops/watchdog/policies")
+def get_sysops_watchdog_policies():
+    from krokbot.sysops.watchdog import get_self_healing_watchdog
+    watchdog = get_self_healing_watchdog()
+    return {"status": "success", "policies": watchdog.list_policies()}
+
+@app.post("/api/sysops/watchdog/policies/{policy_id}/toggle")
+def toggle_sysops_watchdog_policy(policy_id: str):
+    from krokbot.sysops.watchdog import get_self_healing_watchdog
+    watchdog = get_self_healing_watchdog()
+    try:
+        updated = watchdog.toggle_policy(policy_id)
+        return {"status": "success", "policy": updated}
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.get("/api/sysops/watchdog/history")
+def get_sysops_watchdog_history(limit: int = 50):
+    from krokbot.sysops.watchdog import get_self_healing_watchdog
+    watchdog = get_self_healing_watchdog()
+    return {"status": "success", "history": watchdog.get_remediation_history(limit=limit)}
