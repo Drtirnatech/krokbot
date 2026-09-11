@@ -113,6 +113,7 @@ export default function ControlCenterDashboard() {
     timestamp: string;
   } | null>(null);
   const [broadcastMode, setBroadcastMode] = useState(false);
+  const [broadcastIncludeSubagents, setBroadcastIncludeSubagents] = useState(false);
   const [watchdogPolicies, setWatchdogPolicies] = useState<Record<string, any[]>>({});
   const [nodeThermals, setNodeThermals] = useState<Record<string, any>>({});
 
@@ -611,7 +612,10 @@ export default function ControlCenterDashboard() {
         const res = await fetch('/api/fleet/broadcast', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: commandPrompt.trim() })
+          body: JSON.stringify({
+            prompt: commandPrompt.trim(),
+            include_subagents: broadcastIncludeSubagents
+          })
         });
         const data = await res.json();
         setCommandOutput({ status: 'success', broadcast: true, result: data });
@@ -1384,13 +1388,30 @@ export default function ControlCenterDashboard() {
 
             <form onSubmit={handleSendCommand} className="space-y-3">
               {broadcastMode ? (
-                <div className="p-3 rounded bg-[#09151e] border border-[#00e5ff]/40 flex items-center gap-2.5">
-                  <span className="text-base">📡</span>
-                  <div className="text-xs">
-                    <span className="text-[#00e5ff] font-bold block font-mono">FLEET-WIDE BROADCAST ACTIVE</span>
-                    <span className="text-[#7da8b5] text-[11px]">
-                      Your autonomous instruction will be concurrently dispatched to the primary agent on all {nodes.length} registered edge nodes.
-                    </span>
+                <div className="p-3.5 rounded bg-[#09151e] border border-[#00e5ff]/40 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">📡</span>
+                      <div>
+                        <span className="text-[#00e5ff] font-bold block font-mono text-xs">FLEET-WIDE BROADCAST ACTIVE</span>
+                        <span className="text-[#7da8b5] text-[11px]">
+                          {broadcastIncludeSubagents
+                            ? `Swarm Mode: Concurrently dispatching to ALL primary sentinels AND co-located subagents.`
+                            : `Sentinel Mode: Concurrently dispatching to primary sentinels on all ${nodes.length} registered nodes.`}
+                        </span>
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer bg-[#0c1c28] px-2.5 py-1 rounded border border-[#00e5ff]/30 hover:border-[#00e5ff] transition-all select-none">
+                      <input
+                        type="checkbox"
+                        checked={broadcastIncludeSubagents}
+                        onChange={(e) => setBroadcastIncludeSubagents(e.target.checked)}
+                        className="accent-[#00e5ff] w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="text-[11px] font-mono text-white font-bold">
+                        Include Subagents / Workers
+                      </span>
+                    </label>
                   </div>
                 </div>
               ) : (
@@ -1560,10 +1581,19 @@ export default function ControlCenterDashboard() {
                     <div className="space-y-2 max-h-60 overflow-y-auto">
                       {(commandOutput.result?.results || commandOutput.result?.broadcast_results || []).map((nodeRes: any) => (
                         <div key={nodeRes.nodeId} className="p-3 rounded bg-[#090e0b] border border-[#18261e] space-y-1.5">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-white font-mono flex items-center gap-1.5">
+                          <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+                            <span className="font-bold text-white font-mono flex items-center gap-1.5 flex-wrap">
                               <span className={nodeRes.status === 'success' ? 'text-[#00ff66]' : 'text-[#ff3344]'}>●</span>
                               <span>{nodeRes.nodeId}</span>
+                              {nodeRes.agentId && (
+                                <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                                  nodeRes.isPrimary
+                                    ? 'bg-[#183523] text-[#00ff66] border border-[#00ff66]/40'
+                                    : 'bg-[#1b2533] text-[#70a5ff] border border-[#70a5ff]/30'
+                                }`}>
+                                  {nodeRes.agentId} ({nodeRes.isPrimary ? 'PRIMARY' : 'WORKER'})
+                                </span>
+                              )}
                             </span>
                             <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${
                               nodeRes.status === 'success'
