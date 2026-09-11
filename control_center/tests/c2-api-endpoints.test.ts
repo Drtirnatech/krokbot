@@ -203,5 +203,14 @@ describe('C2 Fleet API Endpoints & Multi-Agent Operations', () => {
       const data = await res.json();
       assert.equal(data.status, 'error');
     });
+
+    it('DELETE /api/fleet/nodes/[nodeId]/agents/[agentId] should permanently clean up test worker', async () => {
+      const res = await fetch(`${BASE_URL}/api/fleet/nodes/node-jetson-primary/agents/${testWorkerId}`, {
+        method: 'DELETE'
+      });
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.status, 'success');
+    });
   });
 });

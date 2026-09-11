@@ -181,6 +181,12 @@ export const dbService = {
     );
   },
 
+  getAgents(nodeId: string): AgentRecord[] {
+    const db = getDb();
+    const query = db.prepare('SELECT * FROM agents WHERE node_id = ? ORDER BY is_primary DESC, name ASC');
+    return query.all(nodeId) as unknown as AgentRecord[];
+  },
+
   deleteAgent(id: string): void {
     const db = getDb();
     const stmt = db.prepare('DELETE FROM agents WHERE id = ?');

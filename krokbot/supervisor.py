@@ -65,6 +65,10 @@ class AgentSupervisor:
         if agent_id in self._agents and self._agents[agent_id].get("status") == "running":
             raise ValueError(f"Agent with ID '{agent_id}' is already running.")
 
+        # Ensure assigned_port is unique and not already used by any registered agent
+        used_ports = {a.get("port") for a in self._agents.values() if a.get("port")}
+        while self._next_port in used_ports:
+            self._next_port += 1
         assigned_port = self._next_port
         self._next_port += 1
 

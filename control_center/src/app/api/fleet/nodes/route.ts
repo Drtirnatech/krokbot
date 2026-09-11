@@ -44,8 +44,16 @@ export async function GET() {
             storage_mb: health.storageMb
           });
 
-          // Sync co-located agents into SQLite
+          // Reconcile and sync co-located agents into SQLite
           if (health.agents && health.agents.length > 0) {
+            const liveAgentIds = new Set(health.agents.map((a: any) => a.id));
+            const currentDbAgents = dbService.getAgents(node.id) || [];
+            for (const existing of currentDbAgents) {
+              if (existing.is_primary !== 1 && !liveAgentIds.has(existing.id)) {
+                dbService.deleteAgent(existing.id);
+              }
+            }
+
             for (const a of health.agents) {
               dbService.upsertAgent({
                 id: a.id,
