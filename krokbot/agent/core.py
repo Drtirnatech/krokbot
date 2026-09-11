@@ -7,7 +7,17 @@ from krokbot.agent.planner import WorkflowPlanner, WorkflowPlan
 from krokbot.scripts.manager import ScriptAssetManager, get_script_manager
 
 class KrokBotAgent:
-    def __init__(self, model: Optional[str] = None, bridge_url: Optional[str] = None, scheduler_manager=None, tools_manager=None, script_manager=None):
+    def __init__(self, agent_id: Optional[str] = None, agent_name: Optional[str] = None, model: Optional[str] = None, bridge_url: Optional[str] = None, scheduler_manager=None, tools_manager=None, script_manager=None):
+        from krokbot.model_manager import load_config
+        try:
+            cfg = load_config()
+            cfg_agent = cfg.get("agent", {})
+        except Exception:
+            cfg_agent = {}
+
+        self.agent_id = agent_id or os.getenv("KROKBOT_AGENT_ID") or cfg_agent.get("id") or "krok-prime-01"
+        self.agent_name = agent_name or os.getenv("KROKBOT_AGENT_NAME") or cfg_agent.get("name") or "KrokBot Prime Sentinel"
+
         default_model = os.getenv("LLM_MODEL", "qwen3-4b")
         resolved_bridge_url = bridge_url or os.getenv("BRIDGE_URL")
         self.client = LlamaCppClient(model=model or default_model)

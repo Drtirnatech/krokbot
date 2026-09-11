@@ -21,6 +21,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "n_threads": 4
     },
     "agent": {
+        "id": "krok-prime-01",
+        "name": "KrokBot Prime Sentinel",
         "dashboard_port": 5150,
         "bridge_port": 8990,
         "default_temperature": 0.2

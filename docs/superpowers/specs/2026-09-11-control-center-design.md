@@ -110,16 +110,25 @@ In field deployments, Jetson devices connect via cellular modems, satellite link
 ### 4.2 Uniform Base-Level Agent Units (`KrokBotInstance`)
 Every agent deployed into the container is completely uniform at instantiation:
 * **Identical Engine**: Possesses the full KrokBot autonomy suite (LLM client, task scheduler, tool runner, shell sandbox, audit logger, memory engine).
+* **Base Identity Specification**: Every agent configuration mandates a globally unique identifying ID and a descriptive human-readable name:
+  ```yaml
+  agent:
+    id: "krok-prime-01"            # Unique slug/UUID identifying the agent instance
+    name: "KrokBot Prime Sentinel" # Human-readable descriptive name
+    dashboard_port: 5150
+    bridge_port: 8990
+    default_temperature: 0.2
+  ```
 * **Isolated Environment**:
   ```text
   /app/workspaces/
     └── agent_<id>/
-        ├── agent_config.yaml       # Unique port, tool policy, active prompts
+        ├── agent_config.yaml       # Unique agent.id, agent.name, port, tool policy
         ├── agent_tasks.sqlite3     # Local independent audit/task log
         ├── scripts/                # Local saved scripts library
         └── workspace/              # Sandboxed execution directory
   ```
-* **Post-Deployment Parameterization**: Once deployed, the Control Center configures the agent's active directives, scheduled cron jobs, and tool permissions via API.
+* **Post-Deployment Parameterization**: Once deployed, the Control Center identifies the agent by its unique `id`, and can update its directives, scheduled cron jobs, and tool permissions via API.
 
 ---
 

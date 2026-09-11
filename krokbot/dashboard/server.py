@@ -154,8 +154,28 @@ def get_container_resource_metrics() -> Dict[str, Any]:
             "disk_total_gb": disk_total_gb,
             "disk_percent": disk_percent,
             "process_count": len(procs),
-            "is_docker": is_docker
+            "is_docker": is_docker,
+            "agent_id": getattr(agent_instance_ref, "agent_id", "krok-prime-01"),
+            "agent_name": getattr(agent_instance_ref, "agent_name", "KrokBot Prime Sentinel")
+        },
+        "agent": {
+            "id": getattr(agent_instance_ref, "agent_id", "krok-prime-01"),
+            "name": getattr(agent_instance_ref, "agent_name", "KrokBot Prime Sentinel")
         }
+    }
+
+@app.get("/api/agent/info")
+@app.get("/api/v1/agent/info")
+def get_agent_info():
+    from krokbot.model_manager import load_config
+    cfg = load_config()
+    cfg_agent = cfg.get("agent", {})
+    return {
+        "id": getattr(agent_instance_ref, "agent_id", cfg_agent.get("id", "krok-prime-01")),
+        "name": getattr(agent_instance_ref, "agent_name", cfg_agent.get("name", "KrokBot Prime Sentinel")),
+        "dashboard_port": cfg_agent.get("dashboard_port", 5150),
+        "bridge_port": cfg_agent.get("bridge_port", 8990),
+        "default_temperature": cfg_agent.get("default_temperature", 0.2)
     }
 
 @app.get("/api/metrics")
