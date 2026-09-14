@@ -9,3 +9,4 @@ report.txt
 *.db
 *.db-wal
 *.db-shm
+dist/

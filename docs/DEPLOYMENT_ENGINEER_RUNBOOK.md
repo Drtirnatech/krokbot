@@ -219,6 +219,30 @@ processors=8
 swap=8GB
 ```
 
+### Multi-Agent Co-Location & Automatic Port Adjustment
+
+If an engineer deploys a second (or multiple) full agent containers onto a single host system, KrokBot's deployment automation automatically resolves port collisions and state segregation:
+
+1. **Automatic Container Renaming**:
+   - Instance 1: `krokbot_agent`
+   - Instance 2: `krokbot_agent_2`
+   - Instance N: `krokbot_agent_N`
+
+2. **Dynamic Port Incrementing**:
+   - The deployment automation probes both Docker-bound ports and host loopback TCP sockets:
+     - **Web Dashboard**: Base `5150` -> adjusts to next free port (`5151`, `5152`, etc.)
+     - **VNC Desktop Stream**: Base `8081` -> adjusts to next free port (`8082`, `8083`, etc.)
+     - **Host API Bridge**: Base `8992` -> adjusts to next free port (`8993`, `8994`, etc.)
+
+3. **Storage Segregation**:
+   - **Shared Models**: All agent containers mount `/opt/krokbot/models` read-only, preventing duplicate downloads of large GGUF model weights.
+   - **Isolated Data & SQLite State**: Secondary containers mount `/opt/krokbot/data_<N>` (e.g. `/opt/krokbot/data_2`), preventing database locks or workspace crosstalk.
+
+4. **Command & Control Fleet Registration**:
+   - The bootstrap agent reports the exact dynamically assigned port to C2 upon completion:
+     `http://<NODE_IP>:<ALLOCATED_PORT>` (e.g. `http://192.168.1.120:5151`).
+   - C2 immediately monitors both agents independently with full telemetry, audit logs, and command dispatch capability.
+
 ---
 
 ## 5. Field Diagnostic & Remediation Guide

@@ -110,6 +110,82 @@ def verify_docker_socket(socket_path: str = "/var/run/docker.sock") -> bool:
         log("ERROR", f"Docker CLI invocation error: {e}")
         return False
 
+def get_used_host_ports() -> set:
+    used_ports = set()
+    try:
+        res = subprocess.run(["docker", "ps", "--format", "{{.Ports}}"],
+                             capture_output=True, text=True, timeout=5)
+        if res.returncode == 0:
+            import re
+            matches = re.findall(r':(\d+)->', res.stdout)
+            for m in matches:
+                used_ports.add(int(m))
+    except Exception:
+        pass
+
+    # Probe local loopback for already-bound ports
+    probe_ranges = [range(5150, 5170), range(8081, 8100), range(8992, 9015)]
+    for r in probe_ranges:
+        for p in r:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.08)
+                    if s.connect_ex(('127.0.0.1', p)) == 0:
+                        used_ports.add(p)
+            except Exception:
+                pass
+    return used_ports
+
+def get_existing_containers() -> list:
+    try:
+        res = subprocess.run(["docker", "ps", "-a", "--format", "{{.Names}}"],
+                             capture_output=True, text=True, timeout=5)
+        if res.returncode == 0:
+            return [line.strip() for line in res.stdout.splitlines() if line.strip()]
+    except Exception:
+        pass
+    return []
+
+def allocate_agent_resources(existing_containers: list, used_ports: set) -> dict:
+    # 1. Determine next available container name
+    base_name = "krokbot_agent"
+    container_name = base_name
+    idx = 1
+    while container_name in existing_containers:
+        idx += 1
+        container_name = f"{base_name}_{idx}"
+
+    # 2. Find next available Web Dashboard port (base 5150)
+    web_port = 5150
+    while web_port in used_ports:
+        web_port += 1
+    used_ports.add(web_port)
+
+    # 3. Find next available VNC port (base 8081)
+    vnc_port = 8081
+    while vnc_port in used_ports:
+        vnc_port += 1
+    used_ports.add(vnc_port)
+
+    # 4. Find next available Host Bridge port (base 8992)
+    bridge_port = 8992
+    while bridge_port in used_ports:
+        bridge_port += 1
+    used_ports.add(bridge_port)
+
+    # 5. Determine persistent host data directory (isolated for secondary agents)
+    data_dir = "/opt/krokbot/data" if idx == 1 else f"/opt/krokbot/data_{idx}"
+
+    return {
+        "index": idx,
+        "container_name": container_name,
+        "web_port": web_port,
+        "vnc_port": vnc_port,
+        "bridge_port": bridge_port,
+        "data_dir": data_dir,
+        "is_secondary": idx > 1
+    }
+
 def http_json(url: str, method: str = "GET", data: dict = None, headers: dict = None) -> dict:
     req_headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if headers:
@@ -145,6 +221,13 @@ def main():
         log("DRY-RUN", "Dry-run execution requested. Validating socket and exiting...")
         socket_ok = verify_docker_socket(docker_socket)
         log("DRY-RUN", f"Docker socket check status: {'PASSED' if socket_ok else 'SKIPPED/UNAVAILABLE'}")
+        
+        existing = get_existing_containers()
+        used_ports = get_used_host_ports()
+        plan = allocate_agent_resources(existing, used_ports)
+        log("PLAN", f"Dynamic Resource Planning: Container '{plan['container_name']}' | Web: {plan['web_port']} | VNC: {plan['vnc_port']} | Bridge: {plan['bridge_port']}")
+        if plan["is_secondary"]:
+            log("NOTICE", f"Detected existing agent container(s). Secondary agent configured with adjusted ports and isolated data '{plan['data_dir']}'.")
         print("Dry run completed successfully.")
         return
 
@@ -235,33 +318,53 @@ def main():
     except Exception as e:
         log("WARN", f"Direct model staging notice: {e}. Model will use pre-existing or fallback weights.")
 
-    # 7. Start Agent Container
-    log("STAGE", "[3/4] Launching KrokBot Agent container...")
+    # 7. Start Agent Container with dynamic port and multi-agent resource allocation
+    log("STAGE", "[3/4] Allocating host ports and launching KrokBot Agent container...")
     http_json(f"{c2_url}/api/fleet/enroll/heartbeat", method="POST",
-              data={"node_id": node_id, "progress_percent": 85.0, "progress_status": "STARTING_CONTAINER"})
+              data={"node_id": node_id, "progress_percent": 85.0, "progress_status": "ALLOCATING_PORTS"})
 
-    subprocess.run(["docker", "rm", "-f", "krokbot_agent"], capture_output=True)
+    existing = get_existing_containers()
+    used_ports = get_used_host_ports()
+    alloc = allocate_agent_resources(existing, used_ports)
+
+    log("PORT-MAP", f"Target Container: '{alloc['container_name']}' (Instance #{alloc['index']})")
+    log("PORT-MAP", f"Dashboard Port:   {alloc['web_port']} (mapped to container :5150)")
+    log("PORT-MAP", f"VNC Stream Port:  {alloc['vnc_port']} (mapped to container :8081)")
+    log("PORT-MAP", f"Host Bridge Port: {alloc['bridge_port']} (mapped to container :8992)")
+    log("PORT-MAP", f"Host Storage Dir: {alloc['data_dir']}")
+
+    if alloc["is_secondary"]:
+        log("NOTICE", f"Existing agent detected. Multi-agent co-location active for '{alloc['container_name']}' on port {alloc['web_port']}.")
+
+    # Provision isolated host data directory if secondary agent
+    suffix = f"_{alloc['index']}" if alloc["is_secondary"] else ""
+    target_data_dir = Path(host_mount) / f"data{suffix}"
+    try:
+        target_data_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
     run_cmd = [
         "docker", "run", "-d",
-        "--name", "krokbot_agent",
+        "--name", alloc["container_name"],
         "--restart", "unless-stopped",
-        "-p", "5150:5150",
-        "-p", "8081:8081",
-        "-p", "8992:8992",
+        "-p", f"{alloc['web_port']}:5150",
+        "-p", f"{alloc['vnc_port']}:8081",
+        "-p", f"{alloc['bridge_port']}:8992",
         "-v", "/opt/krokbot/models:/app/models",
-        "-v", "/opt/krokbot/data:/app/data",
+        "-v", f"{alloc['data_dir']}:/app/data",
         "-v", "/var/run/docker.sock:/var/run/docker.sock",
         "krokbot_agent:latest"
     ]
     launch_res = subprocess.run(run_cmd, capture_output=True, text=True)
     if launch_res.returncode != 0:
-        log("ERROR", f"Failed to run krokbot_agent: {launch_res.stderr.strip()}")
+        log("ERROR", f"Failed to run {alloc['container_name']}: {launch_res.stderr.strip()}")
         sys.exit(1)
-    log("OK", "krokbot_agent container launched.")
+    log("OK", f"{alloc['container_name']} container successfully launched.")
 
-    # 8. Notify completion
+    # 8. Notify completion with exact allocated web port
     log("STAGE", "[4/4] Finalizing deployment and notifying Command Center...")
-    endpoint_url = f"http://{specs['ip_address']}:5150"
+    endpoint_url = f"http://{specs['ip_address']}:{alloc['web_port']}"
     try:
         http_json(f"{c2_url}/api/fleet/enroll/complete", method="POST",
                   data={"node_id": node_id, "endpoint_url": endpoint_url})
@@ -270,8 +373,9 @@ def main():
         log("WARN", f"Completion notification notice: {e}")
 
     print("=" * 65)
-    print(f"DEPLOYMENT COMPLETE: KrokBot Agent is now active on {endpoint_url}")
-    print("Field engineers can view live logs with: docker logs -f krokbot_agent")
+    print(f"DEPLOYMENT COMPLETE: {alloc['container_name']} is now active on {endpoint_url}")
+    print(f"VNC Desktop stream:  http://{specs['ip_address']}:{alloc['vnc_port']}")
+    print(f"Field engineers can view live logs with: docker logs -f {alloc['container_name']}")
     print("=" * 65)
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import tempfile
 import pytest
 from pathlib import Path
 from scripts.package_offline_node import create_bundle
+from krokbot_bootstrap.bootstrap import allocate_agent_resources
 
 def test_offline_bundle_scripts_exist():
     repo_root = Path(__file__).resolve().parent.parent
@@ -19,13 +20,52 @@ def test_offline_bundle_scripts_exist():
     sh_content = install_sh.read_text(encoding="utf-8")
     assert "docker load" in sh_content
     assert "/opt/krokbot" in sh_content
-    assert "5150:5150" in sh_content
-    assert "krokbot_agent:latest" in sh_content
+    assert ":5150" in sh_content
+    assert "krokbot_agent" in sh_content
+    assert "WEB_PORT" in sh_content
 
     ps1_content = install_ps1.read_text(encoding="utf-8")
     assert "docker load" in ps1_content
-    assert "5150:5150" in ps1_content
+    assert ":5150" in ps1_content
     assert "krokbot_agent" in ps1_content
+    assert "Get-NextFreePort" in ps1_content
+
+def test_multi_agent_resource_and_port_adjustment():
+    # 1. First agent on blank machine
+    existing_containers = []
+    used_ports = set()
+    alloc1 = allocate_agent_resources(existing_containers, used_ports)
+
+    assert alloc1["container_name"] == "krokbot_agent"
+    assert alloc1["web_port"] == 5150
+    assert alloc1["vnc_port"] == 8081
+    assert alloc1["bridge_port"] == 8992
+    assert alloc1["data_dir"] == "/opt/krokbot/data"
+    assert alloc1["is_secondary"] is False
+
+    # 2. Second agent on same machine (ports in use and container exists)
+    existing_containers = ["krokbot_agent"]
+    used_ports = {5150, 8081, 8992}
+    alloc2 = allocate_agent_resources(existing_containers, used_ports)
+
+    assert alloc2["container_name"] == "krokbot_agent_2"
+    assert alloc2["web_port"] == 5151
+    assert alloc2["vnc_port"] == 8082
+    assert alloc2["bridge_port"] == 8993
+    assert alloc2["data_dir"] == "/opt/krokbot/data_2"
+    assert alloc2["is_secondary"] is True
+
+    # 3. Third agent with gaps or multiple containers
+    existing_containers = ["krokbot_agent", "krokbot_agent_2"]
+    used_ports = {5150, 5151, 8081, 8082, 8992, 8993}
+    alloc3 = allocate_agent_resources(existing_containers, used_ports)
+
+    assert alloc3["container_name"] == "krokbot_agent_3"
+    assert alloc3["web_port"] == 5152
+    assert alloc3["vnc_port"] == 8083
+    assert alloc3["bridge_port"] == 8994
+    assert alloc3["data_dir"] == "/opt/krokbot/data_3"
+    assert alloc3["is_secondary"] is True
 
 def test_package_offline_bundle_creates_valid_archive():
     archive_path = create_bundle(include_models=False, include_image=False)

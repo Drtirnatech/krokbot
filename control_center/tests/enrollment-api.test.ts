@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 const BASE_URL = process.env.C2_TEST_URL || 'http://127.0.0.1:5200';
@@ -108,5 +108,11 @@ describe('C2 Fleet Enrollment & Stream Depot API Endpoints', () => {
   it('GET /api/fleet/dist/image returns 200 with octet-stream or tar stream', async () => {
     const res = await fetch(`${BASE_URL}/api/fleet/dist/image`);
     assert.ok(res.status === 200 || res.status === 404, 'Endpoint should return 200 or 404 with standard status');
+  });
+
+  after(async () => {
+    // Clean up test node and pending entry so test artifacts never linger in live C2 database
+    await fetch(`${BASE_URL}/api/fleet/nodes/${testNodeId}`, { method: 'DELETE' }).catch(() => {});
+    await fetch(`${BASE_URL}/api/fleet/enroll/pending?id=${testNodeId}`, { method: 'DELETE' }).catch(() => {});
   });
 });
