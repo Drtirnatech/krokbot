@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 
 const DB_PATH = process.env.C2_DB_PATH || path.join(process.cwd(), 'c2_fleet.db');
 
@@ -79,7 +80,65 @@ export function initSchema(db: DatabaseSync) {
       duration_ms REAL DEFAULT 0,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS enrollment_tokens (
+      token TEXT PRIMARY KEY,
+      created_by TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME NOT NULL,
+      is_claimed INTEGER NOT NULL DEFAULT 0,
+      claimed_at DATETIME,
+      claimed_by_node_id TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS pending_nodes (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL,
+      hostname TEXT NOT NULL,
+      ip_address TEXT NOT NULL,
+      arch TEXT NOT NULL,
+      ram_total_gb REAL NOT NULL,
+      ram_free_gb REAL NOT NULL,
+      disk_free_gb REAL NOT NULL,
+      gpu_info TEXT,
+      status TEXT NOT NULL DEFAULT 'pending_approval',
+      selected_model TEXT,
+      target_node_name TEXT,
+      progress_percent REAL NOT NULL DEFAULT 0.0,
+      progress_status TEXT,
+      last_heartbeat DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
+}
+
+export interface PendingNodeRecord {
+  id: string;
+  token: string;
+  hostname: string;
+  ip_address: string;
+  arch: string;
+  ram_total_gb: number;
+  ram_free_gb: number;
+  disk_free_gb: number;
+  gpu_info?: string | null;
+  status: 'pending_approval' | 'approved' | 'streaming' | 'failed' | 'completed';
+  selected_model?: string | null;
+  target_node_name?: string | null;
+  progress_percent: number;
+  progress_status?: string | null;
+  last_heartbeat: string;
+  created_at: string;
+}
+
+export interface EnrollmentTokenRecord {
+  token: string;
+  created_by: string;
+  created_at: string;
+  expires_at: string;
+  is_claimed: number;
+  claimed_at?: string | null;
+  claimed_by_node_id?: string | null;
 }
 
 export interface NodeRecord {
@@ -256,5 +315,160 @@ export const dbService = {
     const db = getDb();
     const stmt = db.prepare('SELECT * FROM audit_logs ORDER BY id DESC, timestamp DESC LIMIT ?');
     return stmt.all(limit);
+  },
+
+  createEnrollmentToken(createdBy: string = 'admin', expiryMinutes: number = 60): string {
+    const db = getDb();
+    const randomPart = crypto.randomBytes(12).toString('hex');
+    const token = `krok-enroll-${randomPart}`;
+    const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000).toISOString();
+    const stmt = db.prepare(`
+      INSERT INTO enrollment_tokens (token, created_by, expires_at)
+      VALUES (?, ?, ?)
+    `);
+    stmt.run(token, createdBy, expiresAt);
+    return token;
+  },
+
+  validateEnrollmentToken(token: string): boolean {
+    const db = getDb();
+    const stmt = db.prepare(`
+      SELECT * FROM enrollment_tokens WHERE token = ?
+    `);
+    const record = stmt.get(token) as unknown as EnrollmentTokenRecord | undefined;
+    if (!record) return false;
+    if (record.is_claimed === 1) return false;
+    const expiresAtMs = new Date(record.expires_at).getTime();
+    if (Date.now() > expiresAtMs) return false;
+    return true;
+  },
+
+  claimEnrollmentToken(token: string, nodeId?: string): boolean {
+    if (!this.validateEnrollmentToken(token)) return false;
+    const db = getDb();
+    const stmt = db.prepare(`
+      UPDATE enrollment_tokens 
+      SET is_claimed = 1, claimed_at = CURRENT_TIMESTAMP, claimed_by_node_id = ?
+      WHERE token = ? AND is_claimed = 0
+    `);
+    const result = stmt.run(nodeId || null, token) as { changes?: number };
+    return (result?.changes ?? 1) > 0;
+  },
+
+  upsertPendingNode(data: {
+    id: string;
+    token: string;
+    hostname: string;
+    ip_address: string;
+    arch: string;
+    ram_total_gb: number;
+    ram_free_gb: number;
+    disk_free_gb: number;
+    gpu_info?: string | null;
+  }): void {
+    const db = getDb();
+    const stmt = db.prepare(`
+      INSERT INTO pending_nodes (
+        id, token, hostname, ip_address, arch, ram_total_gb, ram_free_gb, disk_free_gb, gpu_info, status, progress_percent, last_heartbeat
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_approval', 0.0, CURRENT_TIMESTAMP)
+      ON CONFLICT(id) DO UPDATE SET
+        token = excluded.token,
+        hostname = excluded.hostname,
+        ip_address = excluded.ip_address,
+        arch = excluded.arch,
+        ram_total_gb = excluded.ram_total_gb,
+        ram_free_gb = excluded.ram_free_gb,
+        disk_free_gb = excluded.disk_free_gb,
+        gpu_info = excluded.gpu_info,
+        last_heartbeat = CURRENT_TIMESTAMP;
+    `);
+    stmt.run(
+      data.id,
+      data.token,
+      data.hostname,
+      data.ip_address,
+      data.arch,
+      data.ram_total_gb,
+      data.ram_free_gb,
+      data.disk_free_gb,
+      data.gpu_info || null
+    );
+  },
+
+  getPendingNodes(): PendingNodeRecord[] {
+    const db = getDb();
+    const stmt = db.prepare(`
+      SELECT * FROM pending_nodes WHERE status != 'completed' ORDER BY created_at DESC
+    `);
+    return stmt.all() as unknown as PendingNodeRecord[];
+  },
+
+  getPendingNode(id: string): PendingNodeRecord | null {
+    const db = getDb();
+    const stmt = db.prepare('SELECT * FROM pending_nodes WHERE id = ?');
+    const record = stmt.get(id) as unknown as PendingNodeRecord | undefined;
+    return record || null;
+  },
+
+  approvePendingNode(id: string, model: string, name?: string): void {
+    const db = getDb();
+    const stmt = db.prepare(`
+      UPDATE pending_nodes
+      SET status = 'approved', selected_model = ?, target_node_name = ?, last_heartbeat = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    stmt.run(model, name || null, id);
+  },
+
+  updatePendingNodeProgress(id: string, percent: number, status?: string): void {
+    const db = getDb();
+    const stmt = db.prepare(`
+      UPDATE pending_nodes
+      SET progress_percent = ?, progress_status = ?, status = 'streaming', last_heartbeat = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    stmt.run(percent, status || null, id);
+  },
+
+  completePendingNode(id: string, endpointUrl?: string): void {
+    const db = getDb();
+    const pending = this.getPendingNode(id);
+    if (pending) {
+      const nodeName = pending.target_node_name || pending.hostname;
+      const nodeIp = endpointUrl || pending.ip_address;
+      const activeModel = pending.selected_model || 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf';
+      const hardwareInfo = `${pending.arch.toUpperCase()} | ${pending.ram_total_gb.toFixed(1)} GB RAM | ${pending.disk_free_gb.toFixed(0)} GB Free Disk${pending.gpu_info ? ` | ${pending.gpu_info}` : ''}`;
+      
+      this.upsertNode({
+        id: pending.id,
+        name: nodeName,
+        ip_address: nodeIp,
+        status: 'online',
+        active_model: activeModel,
+        hardware_info: hardwareInfo
+      });
+
+      this.upsertAgent({
+        id: `${pending.id}-agent-01`,
+        node_id: pending.id,
+        name: `${nodeName} Primary Agent`,
+        status: 'running',
+        port: 5150,
+        is_primary: 1
+      });
+
+      const stmt = db.prepare(`
+        UPDATE pending_nodes
+        SET status = 'completed', progress_percent = 100.0, last_heartbeat = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+      stmt.run(id);
+    }
+  },
+
+  deletePendingNode(id: string): void {
+    const db = getDb();
+    const stmt = db.prepare('DELETE FROM pending_nodes WHERE id = ?');
+    stmt.run(id);
   }
 };
