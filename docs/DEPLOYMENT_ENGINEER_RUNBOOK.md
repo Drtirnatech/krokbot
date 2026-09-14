@@ -152,7 +152,7 @@ Copy this archive onto an encrypted field USB drive or secure transfer medium.
    - Verification of Docker engine and user group permissions.
    - Loading `images/krokbot_agent.tar` into local Docker engine cache.
    - Provisioning persistent host mounts at `/opt/krokbot/models` and `/opt/krokbot/data`.
-   - Launching container `krokbot_agent` with restart policies and port bindings (`5150`, `8081`, `8992`).
+   - Launching container `krokbot_agent` with restart policies and port bindings (`5150`, `5155`, `8992`).
 
 4. Verify status:
    ```bash
@@ -231,7 +231,7 @@ If an engineer deploys a second (or multiple) full agent containers onto a singl
 2. **Dynamic Port Incrementing**:
    - The deployment automation probes both Docker-bound ports and host loopback TCP sockets:
      - **Web Dashboard**: Base `5150` -> adjusts to next free port (`5151`, `5152`, etc.)
-     - **VNC Desktop Stream**: Base `8081` -> adjusts to next free port (`8082`, `8083`, etc.)
+     - **Llama.cpp / VNC Stream**: Base `5155` -> adjusts to next free port (`5156`, `5157`, etc.)
      - **Host API Bridge**: Base `8992` -> adjusts to next free port (`8993`, `8994`, etc.)
 
 3. **Storage Segregation**:
@@ -260,7 +260,7 @@ newgrp docker
 sudo systemctl restart docker
 ```
 
-### Problem: Port Conflict on Port 5150 or 8081
+### Problem: Port Conflict on Port 5150 or 5155
 **Symptom:**
 ```text
 docker: Error response from daemon: driver failed programming external connectivity on endpoint krokbot_agent: Bind for 0.0.0.0:5150 failed: port is already allocated.
@@ -268,7 +268,7 @@ docker: Error response from daemon: driver failed programming external connectiv
 **Fix:**
 Identify and stop the conflicting process:
 ```bash
-sudo ss -tulpn | grep -E '5150|8081|8992'
+sudo ss -tulpn | grep -E '5150|5155|8992'
 # Terminate old container:
 docker rm -f krokbot_agent
 ```
@@ -297,7 +297,7 @@ llama_model_load: error loading model: not enough memory
 Before handing off the deployed edge node to operations, verify:
 
 - [ ] Web dashboard reachable: `curl -I http://localhost:5150/` returns `200 OK`.
-- [ ] VNC stream reachable: `http://<TARGET_IP>:8081` renders noVNC desktop.
+- [ ] Llama.cpp inference reachable: `http://<TARGET_IP>:5155/v1/models` returns model list.
 - [ ] Host bridge operational: `curl http://localhost:8992/api/system/summary` returns host metrics.
 - [ ] Node appears as **ONLINE** in C2 Fleet Dashboard (`http://<C2_IP>:5200`).
 - [ ] Test prompt execution passes from C2 command console.

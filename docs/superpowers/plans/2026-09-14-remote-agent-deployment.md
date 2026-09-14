@@ -335,7 +335,7 @@ Implements:
 4. Polling loop to `$C2_URL/api/fleet/enroll/heartbeat`.
 5. Streaming image payload into `docker load` via subprocess pipe.
 6. Streaming GGUF model directly to `/host_opt_krokbot/models/`.
-7. Spawning `krokbot_agent` container via Docker CLI with port mappings (`5150`, `8081`, `8992`).
+7. Spawning `krokbot_agent` container via Docker CLI with port mappings (`5150`, `5155`, `8992`).
 8. Probing `http://localhost:5150/api/agent/info` for healthy status.
 9. Notifying C2 via `POST /api/fleet/enroll/complete`.
 
@@ -411,7 +411,7 @@ fi
 echo "[3/3] Starting KrokBot Agent container..."
 docker rm -f krokbot_agent >/dev/null 2>&1 || true
 docker run -d --name krokbot_agent --restart unless-stopped \
-  -p 5150:5150 -p 8081:8081 -p 8992:8992 \
+  -p 5150:5150 -p 5155:5155 -p 8992:8992 \
   -v /opt/krokbot/models:/app/models \
   -v /opt/krokbot/data:/app/data \
   -v /var/run/docker.sock:/var/run/docker.sock \

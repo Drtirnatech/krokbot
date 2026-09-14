@@ -21,11 +21,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Expose KrokBot Dashboard (5150), Host API Bridge (8990), and Llama.cpp (8081)
-EXPOSE 5150 8990 8081
+# Expose KrokBot Dashboard (5150), Host API Bridge (8992), Llama.cpp (5155), SearXNG (5160), and FastMCP (5165)
+EXPOSE 5150 8992 5155 5160 5165
 
 ENV MODEL_PATH=/app/models/Qwen3-4B-Q4_K_M.gguf
-ENV LLAMACPP_HOST=http://127.0.0.1:8081
+ENV LLAMACPP_HOST=http://127.0.0.1:5155
 ENV LLM_MODEL=qwen3-4b
 ENV PYTHONUNBUFFERED=1
 

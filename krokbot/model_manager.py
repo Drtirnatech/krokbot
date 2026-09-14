@@ -17,14 +17,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "server": {
         "host": "0.0.0.0",
-        "port": 8081,
+        "port": 5155,
         "n_threads": 4
     },
     "agent": {
         "id": "krok-prime-01",
         "name": "KrokBot Prime Sentinel",
         "dashboard_port": 5150,
-        "bridge_port": 8990,
+        "bridge_port": 8992,
         "default_temperature": 0.2
     },
     "catalog": {}
@@ -293,7 +293,7 @@ def save_config(cfg: Dict[str, Any], config_path: Optional[str] = None) -> str:
         f.write(content)
     return path
 
-def _restart_local_llama_server(model_path: str, port: int = 8081, n_ctx: int = 2048, chat_format: str = "chatml") -> bool:
+def _restart_local_llama_server(model_path: str, port: int = 5155, n_ctx: int = 2048, chat_format: str = "chatml") -> bool:
     """Terminate existing llama_cpp.server and launch with the new model file, verifying in-memory activation."""
     import psutil
     import subprocess
@@ -425,7 +425,7 @@ def set_active_model(
     if restart_server:
         server_restarted = _restart_local_llama_server(
             model_path,
-            port=cfg.get("server", {}).get("port", 8081),
+            port=cfg.get("server", {}).get("port", 5155),
             n_ctx=context_size,
             chat_format=chat_format
         )

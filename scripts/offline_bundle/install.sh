@@ -70,8 +70,8 @@ while docker ps --format '{{.Ports}}' 2>/dev/null | grep -q ":$WEB_PORT->" || (e
 done
 exec 6>&- 2>/dev/null || true
 
-# Allocate unique VNC port (base 8081)
-VNC_PORT=8081
+# Allocate unique Llama.cpp / VNC port (base 5155)
+VNC_PORT=5155
 while docker ps --format '{{.Ports}}' 2>/dev/null | grep -q ":$VNC_PORT->" || (exec 6<>/dev/tcp/127.0.0.1/$VNC_PORT) 2>/dev/null; do
   exec 6>&- 2>/dev/null || true
   VNC_PORT=$((VNC_PORT + 1))
@@ -103,7 +103,7 @@ docker run -d \
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
   -p "$WEB_PORT:5150" \
-  -p "$VNC_PORT:8081" \
+  -p "$VNC_PORT:5155" \
   -p "$BRIDGE_PORT:8992" \
   -v "$TARGET_OPT/models:/app/models" \
   -v "$DATA_DIR:/app/data" \

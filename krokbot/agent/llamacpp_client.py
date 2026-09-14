@@ -10,7 +10,7 @@ class LlamaCppClient:
     _is_generating: bool = False
 
     def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None):
-        self.base_url = (base_url or os.getenv("LLAMACPP_HOST", "http://127.0.0.1:8081")).rstrip("/")
+        self.base_url = (base_url or os.getenv("LLAMACPP_HOST", "http://127.0.0.1:5155")).rstrip("/")
         default_model = os.getenv("LLM_MODEL", "qwen3-4b")
         self.model = model or default_model
 
@@ -30,7 +30,7 @@ class LlamaCppClient:
             try:
                 parsed = urlparse(self.base_url)
                 host = parsed.hostname or "127.0.0.1"
-                port = parsed.port or 8081
+                port = parsed.port or 5155
                 with socket.create_connection((host, port), timeout=0.5):
                     return True
             except Exception:

@@ -40,6 +40,6 @@ COPY docker/search-mcp/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 # Copy application source code
 COPY src/ /app/src/
 
-EXPOSE 8000
+EXPOSE 5165
 
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

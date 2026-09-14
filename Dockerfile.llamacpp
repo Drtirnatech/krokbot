@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir "llama-cpp-python[server]"
 
-EXPOSE 8081
+EXPOSE 5155
 
 ENV MODEL_PATH=/app/models/Qwen3-4B-Q4_K_M.gguf
 
-CMD ["sh", "-c", "python -m llama_cpp.server --model \"$MODEL_PATH\" --host 0.0.0.0 --port 8081 --n_ctx 2048 --chat_format chatml"]
+CMD ["sh", "-c", "python -m llama_cpp.server --model \"$MODEL_PATH\" --host 0.0.0.0 --port 5155 --n_ctx 2048 --chat_format chatml"]

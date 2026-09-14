@@ -9,7 +9,7 @@ class AgentSupervisor:
     """
     In-container supervisor that manages multiple isolated KrokBot agent worker processes.
     Enables deploying additional agents into an existing container deployment
-    while sharing the central Llama.cpp engine on 127.0.0.1:8081.
+    while sharing the central Llama.cpp engine on 127.0.0.1:5155.
     """
     def __init__(self, workspaces_root: Optional[str] = None):
         self.workspaces_root = workspaces_root or os.path.join(os.getcwd(), "workspaces")

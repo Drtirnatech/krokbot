@@ -40,7 +40,7 @@ This specification defines an automated, secure, and NAT/firewall-resilient mech
 |   +---------------------------------------+          +-----------------------------------------+   |
 |   |        krokbot-bootstrap (<30MB)      |          |              krokbot_agent              |   |
 |   |  - Minimal Alpine + Docker CLI socket |          |  - Full Autonomous Multi-Tool Agent     |   |
-|   |  - Reads host CPU, RAM, disk, arch    | =======> |  - Embedded Llama.cpp Arbiter (:8081)   |   |
+|   |  - Reads host CPU, RAM, disk, arch    | =======> |  - Embedded Llama.cpp Arbiter (:5155)   |   |
 |   |  - Pipes stream directly to docker    |  Spawns  |  - Primary Agent Dashboard (:5150)      |   |
 |   |  - Mounts /opt/krokbot host volume    |          |  - Host Hardware Bridge (:8992)         |   |
 |   +---------------------------------------+          +-----------------------------------------+   |
@@ -68,7 +68,7 @@ This specification defines an automated, secure, and NAT/firewall-resilient mech
   2. **Phone Home**: Contacts `$C2_URL/api/fleet/enroll/register` with host specs and enrollment token.
   3. **Heartbeat & Standby**: Polls `$C2_URL/api/fleet/enroll/heartbeat` every 3 seconds while waiting for the operator to review and approve the deployment.
   4. **Direct Stream & Docker Load**: Upon receiving `APPROVED`, streams the image payload directly into `docker load` and writes the assigned GGUF model into `/host_opt_krokbot/models/`.
-  5. **Orchestration**: Runs `docker run` to spawn `krokbot_agent` with required port mappings (`5150`, `8081`, `8992`) and volume mounts.
+  5. **Orchestration**: Runs `docker run` to spawn `krokbot_agent` with required port mappings (`5150`, `5155`, `8992`) and volume mounts.
   6. **Health Verification & Handshake**: Confirms port 5150 returns `HTTP 200` on `/api/agent/info`, sends `POST /api/fleet/enroll/complete` to C2, and transitions into a passive local watchdog.
 
 ---
@@ -172,7 +172,7 @@ sudo cp models/*.gguf /opt/krokbot/models/
 # 4. Launch Container
 echo "[3/3] Starting KrokBot Agent..."
 docker run -d --name krokbot_agent --restart unless-stopped \
-  -p 5150:5150 -p 8081:8081 -p 8992:8992 \
+  -p 5150:5150 -p 5155:5155 -p 8992:8992 \
   -v /opt/krokbot/models:/app/models \
   -v /opt/krokbot/data:/app/data \
   -v /var/run/docker.sock:/var/run/docker.sock \
@@ -211,7 +211,7 @@ echo "SUCCESS: KrokBot Agent active on http://localhost:5150"
 2. **Pre-flight Resource Verification**:
    - Before streaming, C2 checks target free disk space (minimum 5 GB required) and RAM capacity against the chosen model.
 3. **Rollback & Conflict Handling**:
-   - If port 5150, 8081, or 8992 is already bound on the target host, `krokbot-bootstrap` halts gracefully and prints the conflicting process name and PID.
+   - If port 5150, 5155, or 8992 is already bound on the target host, `krokbot-bootstrap` halts gracefully and prints the conflicting process name and PID.
    - If image streaming is interrupted, the bootstrap agent retries up to 3 times before entering `FAILED` state with explicit remediation advice.
 
 ---

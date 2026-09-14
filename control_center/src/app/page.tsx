@@ -1300,7 +1300,7 @@ export default function ControlCenterDashboard() {
                             <div className="text-xs font-bold text-[#ffb000] truncate font-mono" title={health?.activeModel || node.active_model}>
                               {health?.activeModel || node.active_model}
                             </div>
-                            <span className="text-[10px] text-[#5b7a6b]">Llama.cpp Arbiter on 127.0.0.1:8081</span>
+                            <span className="text-[10px] text-[#5b7a6b]">Llama.cpp Arbiter on 127.0.0.1:5155</span>
                           </div>
                         </div>
 
@@ -1518,7 +1518,7 @@ export default function ControlCenterDashboard() {
                                           <div className="p-2.5 rounded bg-[#0b100d] border border-[#16221b] space-y-1">
                                             <span className="text-[10px] text-[#5b7a6b] block">INFERENCE ARBITER BACKEND</span>
                                             <div className="font-mono text-[11px] text-[#ffb000] truncate">
-                                              Shared llama.cpp (127.0.0.1:8081)
+                                              Shared llama.cpp (127.0.0.1:5155)
                                             </div>
                                           </div>
 

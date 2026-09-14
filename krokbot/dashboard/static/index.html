@@ -352,7 +352,7 @@
                 <div id="llm-server-status" style="margin-top: 0.5rem;">
                     <span class="status-badge badge-online" id="llm-badge"><span class="pulse-dot"></span> Online</span>
                 </div>
-                <div style="margin-top: 0.75rem; color: var(--text-muted); font-size: 0.85rem;" id="llm-base-url">http://127.0.0.1:8081</div>
+                <div style="margin-top: 0.75rem; color: var(--text-muted); font-size: 0.85rem;" id="llm-base-url">http://127.0.0.1:5155</div>
             </div>
             <div class="card">
                 <h3>Active GGUF Model</h3>
@@ -2047,7 +2047,7 @@
                 if (llmBadge) {
                     llmBadge.className = isOnline ? 'status-badge badge-online' : 'status-badge badge-offline';
                     llmBadge.innerHTML = isOnline ? '<span class="pulse-dot"></span> Online' : '<span class="pulse-dot"></span> Offline';
-                    document.getElementById('llm-base-url').innerText = data.base_url || 'http://127.0.0.1:8081';
+                    document.getElementById('llm-base-url').innerText = data.base_url || 'http://127.0.0.1:5155';
                     
                     const activeName = (data.loaded_models && data.loaded_models.length > 0) 
                         ? data.loaded_models[0].split('/').pop() 

@@ -4,7 +4,7 @@ general:
   instance_name: "KrokBot-LocalSearch"
 
 server:
-  port: 8080
+  port: 5160
   bind_address: "127.0.0.1"
   secret_key: "krokbot_search_mcp_secret_local_key"
 

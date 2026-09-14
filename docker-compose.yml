@@ -5,7 +5,8 @@ services:
     restart: unless-stopped
     ports:
       - "5150:5150"
-      - "8081:8081"
+      - "5155:5155"
+      - "5165:5165"
     volumes:
       - ./data:/app/data
       - ./models:/app/models
@@ -16,7 +17,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - MODEL_PATH=/app/models/Qwen3-4B-Q4_K_M.gguf
-      - LLAMACPP_HOST=http://127.0.0.1:8081
+      - LLAMACPP_HOST=http://127.0.0.1:5155
       - LLM_MODEL=qwen3-4b
       - BRIDGE_URL=http://host.docker.internal:8992
 

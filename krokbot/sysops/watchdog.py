@@ -52,7 +52,7 @@ class SelfHealingWatchdog:
             "policy_inference_heartbeat": {
                 "id": "policy_inference_heartbeat",
                 "name": "Inference Arbiter Llama.cpp Heartbeat Watchdog",
-                "description": "Detects if 127.0.0.1:8081 fails to respond to health probes and flags restart.",
+                "description": "Detects if 127.0.0.1:5155 fails to respond to health probes and flags restart.",
                 "threshold_metric": "arbiter_unresponsive",
                 "threshold_value": 1.0,
                 "enabled": True,

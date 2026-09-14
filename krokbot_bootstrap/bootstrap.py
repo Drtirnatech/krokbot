@@ -124,7 +124,7 @@ def get_used_host_ports() -> set:
         pass
 
     # Probe local loopback for already-bound ports
-    probe_ranges = [range(5150, 5170), range(8081, 8100), range(8992, 9015)]
+    probe_ranges = [range(5150, 5170), range(8992, 9015)]
     for r in probe_ranges:
         for p in r:
             try:
@@ -161,8 +161,8 @@ def allocate_agent_resources(existing_containers: list, used_ports: set) -> dict
         web_port += 1
     used_ports.add(web_port)
 
-    # 3. Find next available VNC port (base 8081)
-    vnc_port = 8081
+    # 3. Find next available Llama.cpp / VNC port (base 5155)
+    vnc_port = 5155
     while vnc_port in used_ports:
         vnc_port += 1
     used_ports.add(vnc_port)
@@ -329,7 +329,7 @@ def main():
 
     log("PORT-MAP", f"Target Container: '{alloc['container_name']}' (Instance #{alloc['index']})")
     log("PORT-MAP", f"Dashboard Port:   {alloc['web_port']} (mapped to container :5150)")
-    log("PORT-MAP", f"VNC Stream Port:  {alloc['vnc_port']} (mapped to container :8081)")
+    log("PORT-MAP", f"Llama/VNC Port: {alloc['vnc_port']} (mapped to container :5155)")
     log("PORT-MAP", f"Host Bridge Port: {alloc['bridge_port']} (mapped to container :8992)")
     log("PORT-MAP", f"Host Storage Dir: {alloc['data_dir']}")
 
@@ -349,7 +349,7 @@ def main():
         "--name", alloc["container_name"],
         "--restart", "unless-stopped",
         "-p", f"{alloc['web_port']}:5150",
-        "-p", f"{alloc['vnc_port']}:8081",
+        "-p", f"{alloc['vnc_port']}:5155",
         "-p", f"{alloc['bridge_port']}:8992",
         "-v", "/opt/krokbot/models:/app/models",
         "-v", f"{alloc['data_dir']}:/app/data",

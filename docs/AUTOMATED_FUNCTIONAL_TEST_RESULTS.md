@@ -121,7 +121,7 @@ All **7 automated functional tests passed without exception**. Unit regression s
   2. Selected `qwen2.5-coder-1.5b-instruct-q4_k_m.gguf` from available GGUF list.
   3. Clicked `Activate Model`.
 - **Observed Behavior**:
-  - Modal safely initiated background model reload on embedded Llama.cpp server (`http://127.0.0.1:8081`).
+  - Modal safely initiated background model reload on embedded Llama.cpp server (`http://127.0.0.1:5155`).
   - Reload completed in **11,698 ms** without dropping HTTP connections or restarting the container.
   - Container RAM dropped dynamically from **6.27 GB** to **1.90 GB**.
   - Node summary line and active model chip updated automatically.

@@ -12,7 +12,7 @@ KrokBot is an autonomous, multi-agent edge compute operations platform designed 
 
 1. A **Primary Sentinel** agent (`krok-prime-01`, Port `5150`) manages the node lifecycle, schedules, and SysOps subsystems.
 2. Multiple **Lightweight Worker Agents** (`krok-worker-02`, etc.) run in segregated workspace sandboxes (`/app/workspaces/agent_<id>`).
-3. An **In-Container Llama.cpp Arbiter** (`127.0.0.1:8081`) hosts quantized GGUF models in memory once and shares high-throughput inference across all co-located agents.
+3. An **In-Container Llama.cpp Arbiter** (`127.0.0.1:5155`) hosts quantized GGUF models in memory once and shares high-throughput inference across all co-located agents.
 4. An **Edge SysOps Engine** proactively monitors hardware thermals, enforces process safety, prunes storage pressure, and triggers automatic self-healing remediations.
 5. The **C2 Control Center** (`http://localhost:5200`) provides centralized multi-node fleet management, live process inspection, and parallel command broadcasting.
 
@@ -23,7 +23,7 @@ graph TD
             PS[Primary Sentinel :5150]
             W1[Worker Agent 02 :5151]
             W2[Worker Agent 03 :5152]
-            ARB[Shared Llama.cpp Arbiter :8081]
+            ARB[Shared Llama.cpp Arbiter :5155]
             SO[SysOps Engine & Watchdog]
             MB[MarinaBox Compute Sandbox]
         end
@@ -68,7 +68,7 @@ Runs an autonomous evaluation loop against predefined edge compute operational p
 | `policy_storage_pressure` | Storage Pressure & Cache Pruning | Storage usage > 85.0% | Prunes `/app/workspaces/*/scratch` and flushes cache. | 60s |
 | `policy_thermal_guard` | Edge SoC Thermal Throttling Guard | Max Temp > 75.0°C | Broadcasts `krok.sysops.thermal_alert` event on KrokBus. | 45s |
 | `policy_worker_memory` | Worker Memory Leak Protection | Worker RSS > 800 MB | Triggers Python GC and glibc `malloc_trim(0)`. | 30s |
-| `policy_inference_heartbeat` | Llama.cpp Inference Watchdog | Arbiter unresponsive | Pings `127.0.0.1:8081/v1/models`; flags arbiter restart. | 60s |
+| `policy_inference_heartbeat` | Llama.cpp Inference Watchdog | Arbiter unresponsive | Pings `127.0.0.1:5155/v1/models`; flags arbiter restart. | 60s |
 
 All watchdog remediations are published to the internal `KrokBus` event pub/sub bus and logged into the persistent audit trail.
 

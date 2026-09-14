@@ -10,7 +10,7 @@ This document provides a set of numbered, reproducible operational validation te
 |---|---|---|
 | **KrokBot C2 (Control Center)** | `http://localhost:5200` | Multi-agent fleet manager, node accordions, agent command dispatcher, audit logs |
 | **Primary Sentinel Agent (`krok-prime-01`)** | `http://localhost:5150` | Primary interactive console, script manager, cron scheduler, tool policy manager |
-| **Shared Llama.cpp Inference Arbiter** | `http://127.0.0.1:8081` | Central GPU/CPU inference server shared across all co-located agents |
+| **Shared Llama.cpp Inference Arbiter** | `http://127.0.0.1:5155` | Central GPU/CPU inference server shared across all co-located agents |
 | **Host OS Bridge (Optional)** | `http://localhost:8992` | Host CLI command proxy (PowerShell / Bash execution outside container) |
 
 ---

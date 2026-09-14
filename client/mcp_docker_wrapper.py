@@ -13,7 +13,7 @@ class McpDockerClientWrapper:
     def __init__(
         self,
         container_name: str = "krokbot-search-mcp",
-        server_url: str = "http://127.0.0.1:8000"
+        server_url: str = "http://127.0.0.1:5165"
     ):
         self.container_name = container_name
         self.server_url = server_url.rstrip("/")
@@ -21,7 +21,7 @@ class McpDockerClientWrapper:
     def _is_server_healthy(self) -> bool:
         try:
             # Check TCP port reachability
-            s = socket.create_connection(("127.0.0.1", 8000), timeout=0.3)
+            s = socket.create_connection(("127.0.0.1", 5165), timeout=0.3)
             s.close()
             return True
         except Exception:
@@ -51,7 +51,7 @@ class McpDockerClientWrapper:
             if start_res.returncode != 0:
                 # If start failed, check if we need to run it from image
                 run_res = subprocess.run(
-                    ["docker", "run", "-d", "--name", self.container_name, "-p", "8000:8000", self.container_name],
+                    ["docker", "run", "-d", "--name", self.container_name, "-p", "5165:5165", self.container_name],
                     capture_output=True, text=True, timeout=8
                 )
                 if run_res.returncode != 0:
@@ -78,7 +78,7 @@ class McpDockerClientWrapper:
             return {
                 "status": "error",
                 "error": "CONTAINER_UNAVAILABLE",
-                "markdown": f"*(Local search container '{self.container_name}' is not running or could not be reached on port 8000)*"
+                "markdown": f"*(Local search container '{self.container_name}' is not running or could not be reached on port 5165)*"
             }
 
         payload = {

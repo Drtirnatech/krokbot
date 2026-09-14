@@ -24,7 +24,7 @@ except ImportError:
 watchdog = WatchdogState()
 crawler = CrawlerService()
 
-SEARXNG_URL = os.getenv("SEARXNG_INTERNAL_URL", "http://127.0.0.1:8080")
+SEARXNG_URL = os.getenv("SEARXNG_INTERNAL_URL", "http://127.0.0.1:5160")
 
 async def execute_local_search(
     query: str,
@@ -82,4 +82,4 @@ async def local_web_search(
     return await execute_local_search(query, max_results, extract_content)
 
 if __name__ == "__main__":
-    mcp.run(transport="sse", host="0.0.0.0", port=8000)
+    mcp.run(transport="sse", host="0.0.0.0", port=5165)

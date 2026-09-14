@@ -10,7 +10,10 @@ Rather than running multiple heavy containers that exhaust edge device memory, K
 
 * **Primary Sentinel (`krok-prime-01`, Port 5150)**: Manages node lifecycle, cron tasks, and edge SysOps.
 * **Lightweight Co-Located Worker Agents**: Dynamically spawned on separate ports with isolated workspace directories (`/app/workspaces/agent_<id>`).
-* **Shared In-Container Llama.cpp Arbiter (`Port 8081`)**: Loads quantized GGUF models once in VRAM/RAM, serving OpenAI-compatible ChatML inference to all co-located agents simultaneously.
+* **Shared In-Container Llama.cpp Arbiter (`Port 5155`)**: Loads quantized GGUF models once in VRAM/RAM, serving OpenAI-compatible ChatML inference to all co-located agents simultaneously.
+* **Embedded Local Search MCP Suite**:
+  * **SearXNG Search Engine (`Port 5160`)**: Privacy-first meta-search engine aggregating web search results.
+  * **FastMCP Search Tool Server (`Port 5165`)**: Local Model Context Protocol endpoint providing web search and scraper tooling.
 * **Edge SysOps Engine**:
   * **Hardware Diagnostics**: Direct reading of SoC thermal package sensors (`max_temp_c`), storage partitions, and network I/O.
   * **Container Process Supervisor**: Fast `psutil` sampling with strict safety guards protecting PID 1, system init daemons, and sentinel agents (`HTTP 403 Forbidden`).
@@ -26,7 +29,7 @@ graph TD
         PS
         W1[Worker Agent 02 :5151]
         W2[Worker Agent 03 :5152]
-        ARB[Shared Llama.cpp Arbiter :8081]
+        ARB[Shared Llama.cpp Arbiter :5155]
         SO[SysOps Engine & Self-Healing Watchdog]
     end
     PS <-->|Shared Inference| ARB
@@ -56,7 +59,10 @@ npm run dev
 ### Access Ports & Services
 - **C2 Fleet Control Center**: `http://localhost:5200`
 - **Primary Agent Dashboard & API**: `http://localhost:5150`
-- **Shared Llama.cpp Server**: `http://localhost:8081/v1/models`
+- **Shared Llama.cpp Server**: `http://localhost:5155/v1/models`
+- **Embedded SearXNG Engine**: `http://localhost:5160`
+- **FastMCP Search Tool Server**: `http://localhost:5165`
+- **Host API Bridge**: `http://localhost:8992`
 
 ---
 

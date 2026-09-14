@@ -8,13 +8,13 @@ model:
   auto_download: true
 server:
   host: 0.0.0.0
-  port: 8081
+  port: 5155
   n_threads: 4
 agent:
   id: krok-prime-01
   name: KrokBot Sentinel Prime
   dashboard_port: 5150
-  bridge_port: 8990
+  bridge_port: 8992
   default_temperature: 0.2
 catalog:
   qwen3-4b:

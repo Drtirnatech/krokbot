@@ -10,7 +10,7 @@ def test_searxng_settings_configuration():
         cfg = yaml.safe_load(f)
     assert "search" in cfg
     assert "json" in cfg["search"].get("formats", [])
-    assert cfg.get("server", {}).get("port") == 8080
+    assert cfg.get("server", {}).get("port") == 5160
     assert cfg.get("server", {}).get("bind_address") in ("127.0.0.1", "0.0.0.0")
 
 def test_dockerfile_and_supervisor_exist():

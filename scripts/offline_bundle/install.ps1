@@ -92,7 +92,7 @@ while ($existingContainers -contains $containerName) {
 }
 
 $webPort = Get-NextFreePort 5150
-$vncPort = Get-NextFreePort 8081
+$vncPort = Get-NextFreePort 5155
 $bridgePort = Get-NextFreePort 8992
 $targetDataDir = if ($idx -eq 1) { "$OptDir\data" } else { "$OptDir\data_$idx" }
 New-Item -ItemType Directory -Force -Path $targetDataDir | Out-Null
@@ -106,7 +106,7 @@ docker run -d `
   --name $containerName `
   --restart unless-stopped `
   -p "${webPort}:5150" `
-  -p "${vncPort}:8081" `
+  -p "${vncPort}:5155" `
   -p "${bridgePort}:8992" `
   -v "${OptDir}\models:/app/models" `
   -v "${targetDataDir}:/app/data" `

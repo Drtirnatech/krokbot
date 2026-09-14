@@ -13,7 +13,7 @@ import time
 from urllib.parse import urlparse
 
 REQUIRED_PACKAGES = ["fastapi", "uvicorn", "psutil", "httpx", "pydantic", "yaml"]
-LLAMACPP_URL = os.getenv("LLAMACPP_HOST", "http://127.0.0.1:8081").rstrip("/")
+LLAMACPP_URL = os.getenv("LLAMACPP_HOST", "http://127.0.0.1:5155").rstrip("/")
 
 def print_banner():
     print("=" * 60)
@@ -120,7 +120,7 @@ def ensure_llamacpp_service() -> bool:
 
     parsed = urlparse(LLAMACPP_URL)
     hostname = parsed.hostname or "127.0.0.1"
-    port = parsed.port or 8081
+    port = parsed.port or 5155
 
     is_local = hostname in ("localhost", "127.0.0.1", "0.0.0.0")
 
