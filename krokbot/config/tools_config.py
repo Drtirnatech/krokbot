@@ -30,6 +30,16 @@ DEFAULT_TOOLS_CONFIG: Dict[str, Any] = {
             "governance_scope": "external_network",
             "icon": "globe"
         },
+        "local_search_mcp": {
+            "id": "local_search_mcp",
+            "name": "Local Search MCP",
+            "category": "Web & Network",
+            "description": "Enables local SearXNG and Crawl4AI web search and content extraction via the on-demand FastMCP container.",
+            "enabled": True,
+            "danger_level": "low",
+            "governance_scope": "external_network",
+            "icon": "search"
+        },
         "os_bridge": {
             "id": "os_bridge",
             "name": "OS Bridge (Host Hardware)",

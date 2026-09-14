@@ -645,41 +645,67 @@ class KrokBotAgent:
             self.history.append({"role": "user", "content": context_update})
 
         elif intent == "web_query":
-            if not self.tools.is_tool_enabled("browser_function"):
-                err_msg = "[SECURITY GOVERNANCE ERROR] 'Browser Function' tool is disabled by administrator policy in agent_tools.json. Web queries and network browsing are blocked."
-                return {
-                    "status": "blocked",
-                    "report": f"### Task Blocked by Security Policy\n\n{err_msg}\n\nFinal Answer: Execution aborted due to tool governance policy.",
-                    "browser_output": {"status": "error", "output": err_msg}
-                }
-            browser_output = self.tools.run_browser_action("wait", duration=0.1)
-            url_match = re.search(r"(https?://[^\s'\"]+)", task_prompt)
-            target_url = url_match.group(1) if url_match else ("https://wttr.in/?format=3" if "weather" in task_prompt.lower() else "")
-
-            if target_url:
-                web_fetch_script = (
-                    "import sys, urllib.request, re\n"
-                    "if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')\n"
-                    "try:\n"
-                    f"    req = urllib.request.Request('{target_url}', headers={{'User-Agent': 'Mozilla/5.0'}})\n"
-                    "    html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')\n"
-                    "    text = re.sub(r'<script.*?>.*?</script>', '', html, flags=re.DOTALL)\n"
-                    "    text = re.sub(r'<style.*?>.*?</style>', '', text, flags=re.DOTALL)\n"
-                    "    text = re.sub(r'<[^>]+>', ' ', text)\n"
-                    "    clean_text = ' '.join(text.split())[:1500]\n"
-                    "    print(f'[SANDBOX WEB FETCH] {clean_text}')\n"
-                    "except Exception as e:\n"
-                    "    print(f'[SANDBOX WEB FETCH ERROR] {e}')\n"
+            is_search = any(k in task_prompt.lower() for k in ["search", "find online", "query", "look up", "google", "ddg", "duckduckgo"])
+            
+            if is_search:
+                if not self.tools.is_tool_enabled("local_search_mcp"):
+                    err_msg = "[SECURITY GOVERNANCE ERROR] 'Local Search MCP' tool is disabled by administrator policy in agent_tools.json. Web searches are blocked."
+                    return {
+                        "status": "blocked",
+                        "report": f"### Task Blocked by Security Policy\n\n{err_msg}\n\nFinal Answer: Execution aborted due to tool governance policy.",
+                        "search_output": {"status": "error", "output": err_msg}
+                    }
+                search_res = self.tools.search_local_mcp(task_prompt)
+                if search_res.get("status") == "blocked":
+                    err_msg = search_res.get("message", "Local Search MCP is disabled.")
+                    return {
+                        "status": "blocked",
+                        "report": f"### Task Blocked by Security Policy\n\n{err_msg}\n\nFinal Answer: Execution aborted due to tool governance policy.",
+                        "search_output": search_res
+                    }
+                search_markdown = search_res.get("markdown", "")
+                context_update = (
+                    f"Local Search MCP Output:\n{search_markdown}\n"
+                    f"User Prompt: '{task_prompt}'\n"
+                    "Please provide a complete and comprehensive answer based on the local search results."
                 )
-                sandbox_output = self.tools.run_sandbox_script(web_fetch_script)
+                self.history.append({"role": "user", "content": context_update})
+            else:
+                if not self.tools.is_tool_enabled("browser_function"):
+                    err_msg = "[SECURITY GOVERNANCE ERROR] 'Browser Function' tool is disabled by administrator policy in agent_tools.json. Web queries and network browsing are blocked."
+                    return {
+                        "status": "blocked",
+                        "report": f"### Task Blocked by Security Policy\n\n{err_msg}\n\nFinal Answer: Execution aborted due to tool governance policy.",
+                        "browser_output": {"status": "error", "output": err_msg}
+                    }
+                browser_output = self.tools.run_browser_action("wait", duration=0.1)
+                url_match = re.search(r"(https?://[^\s'\"]+)", task_prompt)
+                target_url = url_match.group(1) if url_match else ("https://wttr.in/?format=3" if "weather" in task_prompt.lower() else "")
 
-            context_update = (
-                f"Browser Action Output: {browser_output}\n"
-                f"Sandbox Web Fetch Output: {sandbox_output}\n"
-                f"User Prompt: '{task_prompt}'\n"
-                "Please provide a complete answer based on the web/browser tool response."
-            )
-            self.history.append({"role": "user", "content": context_update})
+                if target_url:
+                    web_fetch_script = (
+                        "import sys, urllib.request, re\n"
+                        "if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')\n"
+                        "try:\n"
+                        f"    req = urllib.request.Request('{target_url}', headers={{'User-Agent': 'Mozilla/5.0'}})\n"
+                        "    html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')\n"
+                        "    text = re.sub(r'<script.*?>.*?</script>', '', html, flags=re.DOTALL)\n"
+                        "    text = re.sub(r'<style.*?>.*?</style>', '', text, flags=re.DOTALL)\n"
+                        "    text = re.sub(r'<[^>]+>', ' ', text)\n"
+                        "    clean_text = ' '.join(text.split())[:1500]\n"
+                        "    print(f'[SANDBOX WEB FETCH] {clean_text}')\n"
+                        "except Exception as e:\n"
+                        "    print(f'[SANDBOX WEB FETCH ERROR] {e}')\n"
+                    )
+                    sandbox_output = self.tools.run_sandbox_script(web_fetch_script)
+
+                context_update = (
+                    f"Browser Action Output: {browser_output}\n"
+                    f"Sandbox Web Fetch Output: {sandbox_output}\n"
+                    f"User Prompt: '{task_prompt}'\n"
+                    "Please provide a complete answer based on the web/browser tool response."
+                )
+                self.history.append({"role": "user", "content": context_update})
 
         elif intent == "host_cli":
             if not self.tools.is_tool_enabled("system_cli"):

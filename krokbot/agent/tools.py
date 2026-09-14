@@ -93,6 +93,18 @@ class ToolRegistry:
             return self.tools_manager.is_tool_enabled(tool_id)
         return True
 
+    def search_local_mcp(self, query: str, max_results: int = 3, extract_content: bool = True) -> Dict[str, Any]:
+        if not self.is_tool_enabled("local_search_mcp"):
+            return {
+                "status": "blocked",
+                "error": "SECURITY_POLICY_VIOLATION",
+                "message": "[SECURITY GOVERNANCE ERROR] 'Local Search MCP' tool is disabled by administrator policy in agent_tools.json. Local web search is blocked.",
+                "markdown": "*(Local Search MCP disabled by administrator policy)*"
+            }
+        from client.mcp_docker_wrapper import McpDockerClientWrapper
+        wrapper = McpDockerClientWrapper()
+        return wrapper.search(query=query, max_results=max_results, extract_content=extract_content)
+
     def query_host_metrics(self, endpoint_type: str = "summary") -> Dict[str, Any]:
         if not self.is_tool_enabled("os_bridge"):
             return {
