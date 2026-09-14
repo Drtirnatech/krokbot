@@ -54,6 +54,25 @@ interface ModelItem {
   size_mb?: number;
 }
 
+export interface PendingNode {
+  id: string;
+  token: string;
+  hostname: string;
+  ip_address: string;
+  arch: string;
+  ram_total_gb: number;
+  ram_free_gb: number;
+  disk_free_gb: number;
+  gpu_info?: string | null;
+  status: 'pending_approval' | 'approved' | 'streaming' | 'failed' | 'completed';
+  selected_model?: string | null;
+  target_node_name?: string | null;
+  progress_percent: number;
+  progress_status?: string | null;
+  last_heartbeat: string;
+  created_at: string;
+}
+
 export default function ControlCenterDashboard() {
   const [nodes, setNodes] = useState<NodeRecord[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -72,6 +91,18 @@ export default function ControlCenterDashboard() {
   const [availableModels, setAvailableModels] = useState<ModelItem[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [switchingModel, setSwitchingModel] = useState(false);
+
+  // Deployment & Enrollment state
+  const [pendingNodes, setPendingNodes] = useState<PendingNode[]>([]);
+  const [enrollModalOpen, setEnrollModalOpen] = useState(false);
+  const [enrollTab, setEnrollTab] = useState<'automated' | 'manual' | 'direct'>('automated');
+  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+  const [generatedCommand, setGeneratedCommand] = useState<string | null>(null);
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const [copiedCommand, setCopiedCommand] = useState(false);
+  const [approvingNodeId, setApprovingNodeId] = useState<string | null>(null);
+  const [selectedDeployModels, setSelectedDeployModels] = useState<Record<string, string>>({});
+  const [customDeployNames, setCustomDeployNames] = useState<Record<string, string>>({});
 
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [regNodeId, setRegNodeId] = useState('');
@@ -360,20 +391,35 @@ export default function ControlCenterDashboard() {
     }
   }, []);
 
+  // Fetch Pending Edge Nodes (Approval Queue)
+  const fetchPendingNodes = useCallback(async () => {
+    try {
+      const res = await fetch('/api/fleet/enroll/pending');
+      if (res.ok) {
+        const data = await res.json();
+        setPendingNodes(data.pending_nodes || []);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Initial load & Polling Loop
   useEffect(() => {
     fetchFleet();
     fetchAuditLogs();
+    fetchPendingNodes();
 
     const interval = setInterval(() => {
       if (autoRefresh) {
         fetchFleet();
         fetchAuditLogs();
+        fetchPendingNodes();
       }
-    }, 5000);
+    }, 4000);
 
     return () => clearInterval(interval);
-  }, [fetchFleet, fetchAuditLogs, autoRefresh]);
+  }, [fetchFleet, fetchAuditLogs, fetchPendingNodes, autoRefresh]);
 
   // Open Deploy Modal
   const openDeployModal = (node: NodeRecord) => {
@@ -615,6 +661,76 @@ export default function ControlCenterDashboard() {
     }
   };
 
+  // Generate Single-Use Enrollment Token
+  const handleGenerateEnrollmentToken = async () => {
+    setTokenLoading(true);
+    try {
+      const res = await fetch('/api/fleet/enroll/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiry_minutes: 60 })
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        setGeneratedToken(data.token);
+        setGeneratedCommand(data.docker_command);
+        setCopiedCommand(false);
+      } else {
+        alert(`Token generation failed: ${data.message || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      alert(`Token generation failed: ${err.message}`);
+    } finally {
+      setTokenLoading(false);
+    }
+  };
+
+  // Approve Pending Edge Node Deployment
+  const handleApproveNode = async (nodeId: string) => {
+    const model = selectedDeployModels[nodeId] || 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf';
+    const targetName = customDeployNames[nodeId] || undefined;
+    setApprovingNodeId(nodeId);
+    try {
+      const res = await fetch('/api/fleet/enroll/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          node_id: nodeId,
+          selected_model: model,
+          target_name: targetName
+        })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Approval failed');
+      }
+      await fetchPendingNodes();
+      await fetchFleet();
+      await fetchAuditLogs();
+    } catch (err: any) {
+      alert(`Approval error: ${err.message}`);
+    } finally {
+      setApprovingNodeId(null);
+    }
+  };
+
+  // Reject Pending Edge Node
+  const handleRejectPendingNode = async (nodeId: string) => {
+    if (!confirm(`Are you sure you want to reject and cancel deployment for pending node ${nodeId}?`)) return;
+    try {
+      const res = await fetch(`/api/fleet/enroll/pending?id=${encodeURIComponent(nodeId)}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Rejection failed');
+      }
+      await fetchPendingNodes();
+    } catch (err: any) {
+      alert(`Reject error: ${err.message}`);
+    }
+  };
+
   // Register New Node
   const handleRegisterNode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -751,10 +867,11 @@ export default function ControlCenterDashboard() {
           </div>
 
           <button
-            onClick={() => setRegisterModalOpen(true)}
-            className="text-xs px-3.5 py-1.5 rounded bg-[#00ff66] text-[#050a07] font-bold hover:bg-[#1aff75] transition-all shadow-[0_0_15px_rgba(0,255,102,0.3)] cursor-pointer"
+            onClick={() => setEnrollModalOpen(true)}
+            className="text-xs px-3.5 py-1.5 rounded bg-[#00ff66] text-[#050a07] font-bold hover:bg-[#1aff75] transition-all shadow-[0_0_15px_rgba(0,255,102,0.3)] cursor-pointer flex items-center gap-1.5"
           >
-            + REGISTER NODE
+            <span>+</span>
+            <span>ENROLL / DEPLOY NODE</span>
           </button>
         </div>
       </header>
@@ -769,6 +886,136 @@ export default function ControlCenterDashboard() {
 
       {/* MAIN C2 CONTENT */}
       <main className="flex-1 p-6 space-y-8 max-w-7xl w-full mx-auto">
+        {/* PENDING APPROVAL QUEUE */}
+        {pendingNodes.length > 0 && (
+          <section className="p-5 rounded-xl bg-[#141208] border border-[#ffb000]/60 space-y-4 shadow-[0_0_25px_rgba(255,176,0,0.15)]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="w-3 h-3 rounded-full bg-[#ffb000] animate-ping"></span>
+                <h2 className="text-sm font-bold tracking-wider text-[#ffb000] uppercase flex items-center gap-2">
+                  <span>///</span> Pending Nodes — Operator Approval Required ({pendingNodes.length})
+                </h2>
+              </div>
+              <span className="text-[11px] text-[#ffb000]/80 font-mono">
+                Outbound bootstrap nodes awaiting deployment confirmation
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {pendingNodes.map((pNode) => {
+                const isStreaming = pNode.status === 'streaming' || pNode.status === 'approved';
+                const currentModel = selectedDeployModels[pNode.id] || 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf';
+
+                return (
+                  <div key={pNode.id} className="p-4 rounded-lg bg-[#0c0f0d] border border-[#2b2915] space-y-3.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-white font-mono">{pNode.hostname}</span>
+                          <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-[#212417] text-[#ffb000] border border-[#ffb000]/30 font-bold">
+                            {pNode.arch.toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-[#7a8a81] font-mono">{pNode.ip_address} • ID: {pNode.id}</span>
+                      </div>
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded border uppercase font-bold ${
+                        isStreaming
+                          ? 'bg-[#0e291d] text-[#00ff66] border-[#00ff66]/40 animate-pulse'
+                          : 'bg-[#291f0e] text-[#ffb000] border-[#ffb000]/40'
+                      }`}>
+                        {pNode.status.replace('_', ' ')}
+                      </span>
+                    </div>
+
+                    {/* Hardware Specs Grid */}
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono">
+                      <div className="p-2 rounded bg-[#070a08] border border-[#18261e]">
+                        <span className="text-[10px] text-[#5b7a6b] block">RAM</span>
+                        <span className="text-white font-bold">{pNode.ram_total_gb.toFixed(1)} GB</span>
+                        <span className="text-[9px] text-[#00ff66] block">({pNode.ram_free_gb.toFixed(1)} GB Free)</span>
+                      </div>
+                      <div className="p-2 rounded bg-[#070a08] border border-[#18261e]">
+                        <span className="text-[10px] text-[#5b7a6b] block">FREE DISK</span>
+                        <span className="text-white font-bold">{pNode.disk_free_gb.toFixed(0)} GB</span>
+                        <span className="text-[9px] text-[#00e5ff] block">Required: &gt;10 GB</span>
+                      </div>
+                      <div className="p-2 rounded bg-[#070a08] border border-[#18261e]">
+                        <span className="text-[10px] text-[#5b7a6b] block">ACCELERATOR</span>
+                        <span className="text-white font-bold text-[11px] truncate block" title={pNode.gpu_info || 'CPU Only'}>
+                          {pNode.gpu_info || 'CPU Only'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Controls */}
+                    {!isStreaming ? (
+                      <div className="space-y-2.5 pt-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <label className="text-[10px] text-[#8aa89b] block mb-1">TARGET NODE NAME</label>
+                            <input
+                              type="text"
+                              value={customDeployNames[pNode.id] ?? pNode.hostname}
+                              onChange={(e) => setCustomDeployNames({ ...customDeployNames, [pNode.id]: e.target.value })}
+                              placeholder="e.g. Field Sentinel Alpha"
+                              className="w-full bg-[#070a08] border border-[#1f3126] rounded px-2.5 py-1.5 text-white font-mono text-xs focus:border-[#00ff66] outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-[#8aa89b] block mb-1">SELECT LLM MODEL</label>
+                            <select
+                              value={currentModel}
+                              onChange={(e) => setSelectedDeployModels({ ...selectedDeployModels, [pNode.id]: e.target.value })}
+                              className="w-full bg-[#070a08] border border-[#1f3126] rounded px-2 py-1.5 text-white font-mono text-xs focus:border-[#00ff66] outline-none"
+                            >
+                              <option value="qwen2.5-coder-1.5b-instruct-q4_k_m.gguf">Qwen2.5-Coder 1.5B (Edge/Jetson, 1.1 GB)</option>
+                              <option value="qwen2.5-coder-7b-instruct-q4_k_m.gguf">Qwen2.5-Coder 7B (Workstation, 4.4 GB)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleRejectPendingNode(pNode.id)}
+                            className="px-3 py-1.5 rounded bg-[#1f1214] hover:bg-[#2b1619] border border-[#ff3344]/30 text-[#ff5566] text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            ✕ Reject
+                          </button>
+                          <button
+                            type="button"
+                            disabled={approvingNodeId === pNode.id}
+                            onClick={() => handleApproveNode(pNode.id)}
+                            className="px-4 py-1.5 rounded bg-[#00ff66] hover:bg-[#1aff75] text-[#050a07] text-xs font-bold transition-all shadow-[0_0_12px_rgba(0,255,102,0.3)] cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                          >
+                            {approvingNodeId === pNode.id ? 'Approving...' : '✓ Approve & Stream Deploy'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 pt-1">
+                        <div className="flex items-center justify-between text-xs font-mono">
+                          <span className="text-[#00ff66] font-bold">STATUS: {pNode.progress_status || 'STREAMING'}</span>
+                          <span className="text-[#00e5ff] font-bold">{pNode.progress_percent.toFixed(0)}%</span>
+                        </div>
+                        <div className="w-full h-2.5 rounded-full bg-[#0a140e] border border-[#1a3323] overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-[#00ff66] to-[#00e5ff] transition-all duration-500 rounded-full"
+                            style={{ width: `${Math.max(5, pNode.progress_percent)}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-[#5b7a6b] block">
+                          Streaming container image tarball and model weights to blank node...
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* FLEET NODES SECTION */}
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1872,76 +2119,225 @@ export default function ControlCenterDashboard() {
         </div>
       )}
 
-      {/* MODAL: REGISTER REMOTE NODE */}
-      {registerModalOpen && (
+      {/* MODAL: ENROLL / DEPLOY NODE (AUTOMATED C2 PUSH & MANUAL AIR-GAPPED) */}
+      {enrollModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0c1310] border border-[#00ff66]/40 rounded-xl max-w-md w-full p-6 space-y-5">
+          <div className="bg-[#0b120e] border border-[#00ff66]/40 rounded-xl max-w-2xl w-full p-6 space-y-5 shadow-[0_0_35px_rgba(0,255,102,0.15)]">
             <div className="flex items-center justify-between border-b border-[#18261e] pb-3">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <span className="text-[#00ff66]">+</span> Register Remote Edge Node
-              </h3>
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <span className="text-[#00ff66]">⚡</span> Deploy New Edge Agent Container
+                </h3>
+                <span className="text-[11px] text-[#5b7a6b] font-mono">
+                  Automated remote push to blank Docker hosts or air-gapped manual installation
+                </span>
+              </div>
               <button
-                onClick={() => setRegisterModalOpen(false)}
-                className="text-[#5b7a6b] hover:text-white text-lg font-bold"
+                onClick={() => setEnrollModalOpen(false)}
+                className="text-[#5b7a6b] hover:text-white text-lg font-bold px-2 cursor-pointer"
               >
                 ×
               </button>
             </div>
 
-            <form onSubmit={handleRegisterNode} className="space-y-4 text-xs">
-              <div>
-                <label className="text-[10px] text-[#5b7a6b] block mb-1">NODE ID</label>
-                <input
-                  type="text"
-                  required
-                  value={regNodeId}
-                  onChange={(e) => setRegNodeId(e.target.value)}
-                  className="w-full bg-[#080d0a] border border-[#1e2e24] rounded p-2 text-white font-mono focus:border-[#00ff66] outline-none"
-                  placeholder="e.g. node-jetson-orin-01"
-                />
-              </div>
+            {/* TAB SELECTOR */}
+            <div className="flex border-b border-[#18261e] text-xs font-mono">
+              <button
+                type="button"
+                onClick={() => setEnrollTab('automated')}
+                className={`px-4 py-2.5 border-b-2 font-bold transition-all cursor-pointer ${
+                  enrollTab === 'automated'
+                    ? 'border-[#00ff66] text-[#00ff66] bg-[#00ff66]/5'
+                    : 'border-transparent text-[#6e8a7d] hover:text-[#c4d6cc]'
+                }`}
+              >
+                1. Automated C2 Push (Phone Home)
+              </button>
+              <button
+                type="button"
+                onClick={() => setEnrollTab('manual')}
+                className={`px-4 py-2.5 border-b-2 font-bold transition-all cursor-pointer ${
+                  enrollTab === 'manual'
+                    ? 'border-[#ffb000] text-[#ffb000] bg-[#ffb000]/5'
+                    : 'border-transparent text-[#6e8a7d] hover:text-[#c4d6cc]'
+                }`}
+              >
+                2. Air-Gapped / Offline USB
+              </button>
+              <button
+                type="button"
+                onClick={() => setEnrollTab('direct')}
+                className={`px-4 py-2.5 border-b-2 font-bold transition-all cursor-pointer ${
+                  enrollTab === 'direct'
+                    ? 'border-[#00e5ff] text-[#00e5ff] bg-[#00e5ff]/5'
+                    : 'border-transparent text-[#6e8a7d] hover:text-[#c4d6cc]'
+                }`}
+              >
+                3. Direct Network Endpoint
+              </button>
+            </div>
 
-              <div>
-                <label className="text-[10px] text-[#5b7a6b] block mb-1">NODE NAME / LOCATION</label>
-                <input
-                  type="text"
-                  required
-                  value={regNodeName}
-                  onChange={(e) => setRegNodeName(e.target.value)}
-                  className="w-full bg-[#080d0a] border border-[#1e2e24] rounded p-2 text-white focus:border-[#00ff66] outline-none"
-                  placeholder="e.g. NVIDIA Jetson Orin Nano (Edge Device)"
-                />
-              </div>
+            {/* TAB CONTENT 1: AUTOMATED C2 PUSH */}
+            {enrollTab === 'automated' && (
+              <div className="space-y-4 text-xs">
+                <div className="p-3.5 rounded-lg bg-[#070d0a] border border-[#18261e] space-y-2">
+                  <p className="text-[#a4c2b3] leading-relaxed">
+                    Deploy onto any blank Linux, NVIDIA Jetson, or WSL2 machine with an active Docker daemon.
+                    Run the one-line command below on the target host. It launches a minimal (<span className="text-[#00ff66] font-bold">&lt;30 MB</span>)
+                    Alpine bootstrap container that profiles the hardware, securely phones home via outbound HTTPS, and registers for operator approval.
+                  </p>
+                </div>
 
-              <div>
-                <label className="text-[10px] text-[#5b7a6b] block mb-1">ENDPOINT BASE URL</label>
-                <input
-                  type="text"
-                  required
-                  value={regNodeIp}
-                  onChange={(e) => setRegNodeIp(e.target.value)}
-                  className="w-full bg-[#080d0a] border border-[#1e2e24] rounded p-2 text-white font-mono focus:border-[#00ff66] outline-none"
-                  placeholder="e.g. http://192.168.1.150:5150"
-                />
-              </div>
+                {!generatedToken ? (
+                  <div className="text-center py-4 space-y-3">
+                    <button
+                      type="button"
+                      disabled={tokenLoading}
+                      onClick={handleGenerateEnrollmentToken}
+                      className="px-6 py-2.5 rounded-lg bg-[#00ff66] text-[#050a07] font-bold text-xs hover:bg-[#1aff75] transition-all shadow-[0_0_15px_rgba(0,255,102,0.3)] cursor-pointer disabled:opacity-50"
+                    >
+                      {tokenLoading ? 'Generating Token...' : 'Generate Single-Use Enrollment Token (60 min)'}
+                    </button>
+                    <span className="text-[10px] text-[#5b7a6b] block">
+                      Tokens are single-use and automatically expire after 60 minutes.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-[#00ff66] font-mono font-bold">
+                        ACTIVE TOKEN: {generatedToken} (Expires in 60m)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleGenerateEnrollmentToken}
+                        className="text-[10px] text-[#7a998b] hover:text-[#00ff66] underline cursor-pointer"
+                      >
+                        Generate New Token ↻
+                      </button>
+                    </div>
 
-              <div className="pt-2 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setRegisterModalOpen(false)}
-                  className="px-4 py-2 rounded bg-[#141e18] text-[#8aa89b] hover:bg-[#1a2720]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={registering}
-                  className="px-5 py-2 rounded bg-[#00ff66] text-black font-bold hover:bg-[#1aff75] disabled:opacity-50"
-                >
-                  {registering ? 'Registering...' : 'Register Node'}
-                </button>
+                    <div className="relative">
+                      <pre className="p-3.5 rounded bg-[#060a08] border border-[#1b3323] text-[#00ff66] font-mono text-[11px] overflow-x-auto whitespace-pre-wrap break-all select-all">
+                        {generatedCommand}
+                      </pre>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (generatedCommand) {
+                            navigator.clipboard.writeText(generatedCommand);
+                            setCopiedCommand(true);
+                            setTimeout(() => setCopiedCommand(false), 2500);
+                          }
+                        }}
+                        className="absolute top-2 right-2 px-3 py-1 rounded bg-[#102419] hover:bg-[#183625] border border-[#00ff66]/40 text-[#00ff66] text-[10px] font-bold transition-all cursor-pointer"
+                      >
+                        {copiedCommand ? '✓ COPIED!' : '📋 Copy Command'}
+                      </button>
+                    </div>
+
+                    <div className="p-3 rounded bg-[#09120d] border border-[#182b20] space-y-1.5 text-[11px] text-[#8aa89b]">
+                      <div className="font-bold text-white">Next Steps for Field Engineer:</div>
+                      <div>1. Paste and run the command in the target host terminal.</div>
+                      <div>2. The node will phone home and appear in the <span className="text-[#ffb000] font-bold">Pending Nodes</span> queue above.</div>
+                      <div>3. Review hardware specifications, select the desired LLM model, and click <span className="text-[#00ff66] font-bold">Approve &amp; Stream Deploy</span>.</div>
+                    </div>
+                  </div>
+                )}
               </div>
-            </form>
+            )}
+
+            {/* TAB CONTENT 2: AIR-GAPPED OFFLINE */}
+            {enrollTab === 'manual' && (
+              <div className="space-y-4 text-xs">
+                <div className="p-3.5 rounded-lg bg-[#070d0a] border border-[#18261e] space-y-2">
+                  <p className="text-[#a4c2b3] leading-relaxed">
+                    For secure air-gapped environments without LAN/WAN access to the C2 server, use the self-contained USB deployment bundle.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="p-3 rounded bg-[#09120d] border border-[#182b20] space-y-1.5 text-[11px] text-[#8aa89b]">
+                    <div className="font-bold text-white">1. Package Bundle on Connected Workstation:</div>
+                    <pre className="p-2 rounded bg-[#060a08] border border-[#16291d] text-[#ffb000] font-mono text-[10px] overflow-x-auto">
+                      ./scripts/package_offline_node.sh --full
+                    </pre>
+                    <span className="text-[10px] text-[#5b7a6b]">Creates `dist/krokbot-offline-bundle.tar.gz` containing installer, image, and models.</span>
+                  </div>
+
+                  <div className="p-3 rounded bg-[#09120d] border border-[#182b20] space-y-1.5 text-[11px] text-[#8aa89b]">
+                    <div className="font-bold text-white">2. Run on Air-Gapped Target:</div>
+                    <div className="font-mono text-[10px] text-[#c4d6cc] space-y-1">
+                      <div>Linux / Jetson: <span className="text-[#00ff66]">./install.sh</span></div>
+                      <div>Windows (PowerShell): <span className="text-[#00ff66]">.\install.ps1</span></div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded bg-[#09120d] border border-[#182b20] space-y-1 text-[11px] text-[#8aa89b]">
+                    <div className="font-bold text-white">3. Verify Deployment:</div>
+                    <div>Target dashboard is instantly available at <span className="text-[#00e5ff] font-mono">http://localhost:5150</span></div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT 3: DIRECT NETWORK REGISTRATION */}
+            {enrollTab === 'direct' && (
+              <form onSubmit={handleRegisterNode} className="space-y-4 text-xs">
+                <div>
+                  <label className="text-[10px] text-[#5b7a6b] block mb-1">NODE ID</label>
+                  <input
+                    type="text"
+                    required
+                    value={regNodeId}
+                    onChange={(e) => setRegNodeId(e.target.value)}
+                    className="w-full bg-[#080d0a] border border-[#1e2e24] rounded p-2 text-white font-mono focus:border-[#00ff66] outline-none"
+                    placeholder="e.g. node-jetson-orin-01"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-[#5b7a6b] block mb-1">NODE NAME / LOCATION</label>
+                  <input
+                    type="text"
+                    required
+                    value={regNodeName}
+                    onChange={(e) => setRegNodeName(e.target.value)}
+                    className="w-full bg-[#080d0a] border border-[#1e2e24] rounded p-2 text-white focus:border-[#00ff66] outline-none"
+                    placeholder="e.g. NVIDIA Jetson Orin Nano (Edge Device)"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-[#5b7a6b] block mb-1">ENDPOINT BASE URL</label>
+                  <input
+                    type="text"
+                    required
+                    value={regNodeIp}
+                    onChange={(e) => setRegNodeIp(e.target.value)}
+                    className="w-full bg-[#080d0a] border border-[#1e2e24] rounded p-2 text-white font-mono focus:border-[#00ff66] outline-none"
+                    placeholder="e.g. http://192.168.1.150:5150"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEnrollModalOpen(false)}
+                    className="px-4 py-2 rounded bg-[#141e18] text-[#8aa89b] hover:bg-[#1a2720]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={registering}
+                    className="px-5 py-2 rounded bg-[#00ff66] text-black font-bold hover:bg-[#1aff75] disabled:opacity-50"
+                  >
+                    {registering ? 'Registering...' : 'Register Existing Node'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
