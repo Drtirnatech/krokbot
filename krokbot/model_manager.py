@@ -73,11 +73,16 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     return DEFAULT_CONFIG.copy()
 
 def find_models_dir() -> str:
-    """Resolve directory containing GGUF model files."""
+    """Resolve directory containing GGUF model files within the container environment."""
     env_dir = os.getenv("MODELS_DIR")
     if env_dir and os.path.isdir(env_dir):
         return env_dir
     
+    # When running inside container, strictly enforce /app/models
+    if os.path.exists("/app"):
+        os.makedirs("/app/models", exist_ok=True)
+        return "/app/models"
+
     candidates = [
         "/app/models",
         os.path.join(os.getcwd(), "models"),
