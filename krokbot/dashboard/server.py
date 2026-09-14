@@ -149,9 +149,13 @@ def get_container_resource_metrics() -> Dict[str, Any]:
     disk_info = shutil.disk_usage(app_root)
     disk_used_gb = round((disk_info.total - disk_info.free) / (1024 ** 3), 1)
     disk_total_gb = round(disk_info.total / (1024 ** 3), 1)
+    disk_free_gb = round(disk_info.free / (1024 ** 3), 1)
     disk_percent = round(((disk_info.total - disk_info.free) / disk_info.total) * 100, 1) if disk_info.total > 0 else 0.0
 
     is_docker = os.path.exists("/.dockerenv") or os.path.exists("/sys/fs/cgroup/memory.current")
+    # In Docker, container footprint includes base image/runtime layers (~1.28GB) + mounted models and data
+    base_image_gb = 1.28 if is_docker else 0.0
+    container_footprint_gb = round(base_image_gb + service_storage_gb, 2)
 
     return {
         "cpu_percent": container_cpu_percent,
@@ -165,8 +169,10 @@ def get_container_resource_metrics() -> Dict[str, Any]:
             "storage_service_gb": service_storage_gb,
             "storage_models_mb": models_mb,
             "storage_data_mb": data_mb,
+            "container_footprint_gb": container_footprint_gb,
             "disk_used_gb": disk_used_gb,
             "disk_total_gb": disk_total_gb,
+            "disk_free_gb": disk_free_gb,
             "disk_percent": disk_percent,
             "process_count": len(procs),
             "is_docker": is_docker,

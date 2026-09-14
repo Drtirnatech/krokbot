@@ -10,6 +10,10 @@ export interface RemoteNodeHealth {
   memoryUsedGb: number;
   memoryPercent: number;
   storageMb: number;
+  diskUsedGb: number;
+  diskTotalGb: number;
+  diskPercent: number;
+  containerFootprintGb: number;
   activeModel: string;
   isOnline: boolean;
   agents: Array<{
@@ -67,6 +71,10 @@ export const agentClient = {
         memoryUsedGb: c.memory_used_gb || 0.0,
         memoryPercent: c.memory_percent || 0.0,
         storageMb: c.storage_service_mb || 0.0,
+        diskUsedGb: c.disk_used_gb !== undefined ? c.disk_used_gb : 0.0,
+        diskTotalGb: c.disk_total_gb !== undefined ? c.disk_total_gb : 0.0,
+        diskPercent: c.disk_percent !== undefined ? c.disk_percent : 0.0,
+        containerFootprintGb: c.container_footprint_gb !== undefined ? c.container_footprint_gb : Number(((c.storage_service_mb || 0) / 1024 + 1.28).toFixed(2)),
         activeModel,
         isOnline: true,
         agents: agentsList
@@ -80,6 +88,10 @@ export const agentClient = {
         memoryUsedGb: 0,
         memoryPercent: 0,
         storageMb: 0,
+        diskUsedGb: 0,
+        diskTotalGb: 0,
+        diskPercent: 0,
+        containerFootprintGb: 0,
         activeModel: 'None',
         isOnline: false,
         agents: []

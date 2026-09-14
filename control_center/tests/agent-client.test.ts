@@ -64,7 +64,16 @@ describe('C2 Agent Remote Client (agentClient)', () => {
       mockResponses['/api/metrics'] = {
         status: 200,
         body: {
-          container: { cpu_percent: 4.8, memory_used_gb: 1.2, memory_percent: 15.0, storage_service_mb: 250.0 }
+          container: {
+            cpu_percent: 4.8,
+            memory_used_gb: 1.2,
+            memory_percent: 15.0,
+            storage_service_mb: 250.0,
+            disk_used_gb: 45.5,
+            disk_total_gb: 512.0,
+            disk_percent: 8.9,
+            container_footprint_gb: 1.52
+          }
         }
       };
       mockResponses['/api/models'] = {
@@ -89,6 +98,10 @@ describe('C2 Agent Remote Client (agentClient)', () => {
       assert.equal(health.activeModel, 'DeepSeek-R1-Distill-7B.gguf');
       assert.equal(health.cpuPercent, 4.8);
       assert.equal(health.memoryUsedGb, 1.2);
+      assert.equal(health.diskUsedGb, 45.5);
+      assert.equal(health.diskTotalGb, 512.0);
+      assert.equal(health.diskPercent, 8.9);
+      assert.equal(health.containerFootprintGb, 1.52);
       assert.equal(health.agents.length, 2);
       assert.equal(health.agents[1].id, 'krok-worker-02');
       assert.equal(health.agents[1].port, 5152);

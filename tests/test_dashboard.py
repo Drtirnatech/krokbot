@@ -152,6 +152,10 @@ def test_container_resource_metrics_endpoint():
     assert "storage_service_gb" in c
     assert "storage_models_mb" in c
     assert "storage_data_mb" in c
+    assert "container_footprint_gb" in c
+    assert "disk_used_gb" in c
+    assert "disk_total_gb" in c
+    assert "disk_free_gb" in c
     assert "disk_percent" in c
     assert "process_count" in c
     assert "is_docker" in c
