@@ -1280,19 +1280,13 @@ export default function ControlCenterDashboard() {
                             </div>
                           </div>
 
-                          {/* Container Storage Footprint */}
+                          {/* Host Disk Space Used by Agent */}
                           <div className="p-3 rounded-lg bg-[#0c1310] border border-[#16231c] space-y-1.5">
                             <div className="flex justify-between text-[11px] text-[#5b7a6b]">
-                              <span>CONTAINER STORAGE</span>
+                              <span>HOST DISK USED</span>
                               <span className="text-white font-bold font-mono">
                                 {health?.containerFootprintGb ? `${health.containerFootprintGb.toFixed(2)} GB` : `${((health?.storageMb || 0) / 1024).toFixed(2)} GB`}
                               </span>
-                            </div>
-                            <div className="w-full bg-[#142019] h-2 rounded-full overflow-hidden">
-                              <div
-                                className="bg-[#9c27b0] h-full transition-all duration-500 shadow-[0_0_8px_#9c27b0]"
-                                style={{ width: `${Math.min(100, Math.max(8, ((health?.containerFootprintGb || 1.5) / 10) * 100))}%` }}
-                              ></div>
                             </div>
                             <div className="flex justify-between text-[10px] text-[#5b7a6b]">
                               <span>Models: {health ? `${health.storageMb.toFixed(0)} MB` : '0 MB'}</span>
