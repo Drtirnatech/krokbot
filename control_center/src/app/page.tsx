@@ -1280,27 +1280,23 @@ export default function ControlCenterDashboard() {
                             </div>
                           </div>
 
-                          {/* Container & Host Storage */}
+                          {/* Container Storage Footprint */}
                           <div className="p-3 rounded-lg bg-[#0c1310] border border-[#16231c] space-y-1.5">
                             <div className="flex justify-between text-[11px] text-[#5b7a6b]">
-                              <span>HOST DISK CAPACITY</span>
+                              <span>CONTAINER STORAGE</span>
                               <span className="text-white font-bold font-mono">
-                                {health && (health.diskTotalGb ?? 0) > 0
-                                  ? `${(health.diskUsedGb ?? 0).toFixed(1)} / ${(health.diskTotalGb ?? 0).toFixed(0)} GB (${(health.diskPercent ?? 0).toFixed(0)}%)`
-                                  : `${health ? health.storageMb.toFixed(0) : 0} MB`}
+                                {health?.containerFootprintGb ? `${health.containerFootprintGb.toFixed(2)} GB` : `${((health?.storageMb || 0) / 1024).toFixed(2)} GB`}
                               </span>
                             </div>
                             <div className="w-full bg-[#142019] h-2 rounded-full overflow-hidden">
                               <div
                                 className="bg-[#9c27b0] h-full transition-all duration-500 shadow-[0_0_8px_#9c27b0]"
-                                style={{ width: `${Math.min(100, Math.max(2, health?.diskPercent || (health?.storageMb ? 15 : 0)))}%` }}
+                                style={{ width: `${Math.min(100, Math.max(8, ((health?.containerFootprintGb || 1.5) / 10) * 100))}%` }}
                               ></div>
                             </div>
                             <div className="flex justify-between text-[10px] text-[#5b7a6b]">
-                              <span>Container Footprint:</span>
-                              <span className="text-[#a0c0b0] font-mono">
-                                {health?.containerFootprintGb ? `${health.containerFootprintGb.toFixed(2)} GB` : `${((health?.storageMb || 0) / 1024).toFixed(2)} GB`}
-                              </span>
+                              <span>Models: {health ? `${health.storageMb.toFixed(0)} MB` : '0 MB'}</span>
+                              <span className="text-[#a0c0b0] font-mono">Base Image: 1.28 GB</span>
                             </div>
                           </div>
 

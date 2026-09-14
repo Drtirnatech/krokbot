@@ -155,12 +155,12 @@
 
                     <!-- Storage Metric -->
                     <div class="overhead-col">
-                        <div class="overhead-label">Host Disk Utilization</div>
+                        <div class="overhead-label">Container Storage Used</div>
                         <div class="overhead-val" id="container-storage-val">-- GB</div>
                         <div class="mini-progress-bar">
                             <div class="mini-progress-fill disk-fill" id="container-storage-bar" style="width: 0%;"></div>
                         </div>
-                        <div class="overhead-subtext" id="container-storage-sub">Container: -- GB | Models: -- MB</div>
+                        <div class="overhead-subtext" id="container-storage-sub">Models: -- MB | Base Image: -- GB</div>
                     </div>
                 </div>
             </div>
@@ -887,28 +887,25 @@
                 if (memBar) memBar.style.width = Math.min(100, Math.max(0, Number(memPct))) + '%';
                 if (memSub) memSub.innerText = `${memPct}% of host RAM (${memMb} MB)`;
 
-                // 3. Container & Host Storage Footprint
+                // 3. Container Storage Footprint (models + base image + data)
                 const storageGb = c.storage_service_gb !== undefined ? c.storage_service_gb : 0.0;
-                const storageMb = c.storage_service_mb !== undefined ? c.storage_service_mb : 0;
                 const modelsMb = c.storage_models_mb !== undefined ? c.storage_models_mb : 0;
                 const dataMb = c.storage_data_mb !== undefined ? c.storage_data_mb : 0;
-                const diskUsedGb = c.disk_used_gb !== undefined ? c.disk_used_gb : 0.0;
-                const diskTotalGb = c.disk_total_gb !== undefined ? c.disk_total_gb : 0.0;
-                const diskPct = c.disk_percent !== undefined ? c.disk_percent : 0.0;
                 const containerFootprint = c.container_footprint_gb !== undefined ? c.container_footprint_gb : (storageGb + (c.is_docker ? 1.28 : 0.0));
 
                 const storageElem = document.getElementById('container-storage-val');
                 const storageBar = document.getElementById('container-storage-bar');
                 const storageSub = document.getElementById('container-storage-sub');
                 if (storageElem) {
-                    if (diskTotalGb > 0) {
-                        storageElem.innerText = `${diskUsedGb} / ${diskTotalGb} GB (${diskPct}%)`;
-                    } else {
-                        storageElem.innerText = (storageGb >= 1.0 ? `${storageGb} GB` : `${storageMb} MB`);
-                    }
+                    storageElem.innerText = `${Number(containerFootprint).toFixed(2)} GB`;
                 }
-                if (storageBar) storageBar.style.width = Math.min(100, Math.max(0, Number(diskPct))) + '%';
-                if (storageSub) storageSub.innerText = `Container: ${Number(containerFootprint).toFixed(2)} GB | Models: ${modelsMb} MB`;
+                if (storageBar) {
+                    const footprintPct = Math.min(100, Math.max(8, (containerFootprint / 10.0) * 100));
+                    storageBar.style.width = footprintPct + '%';
+                }
+                if (storageSub) {
+                    storageSub.innerText = `Models: ${modelsMb} MB | Base: ${c.is_docker ? '1.28 GB' : '0 GB'}${dataMb > 0 ? ` | Data: ${dataMb} MB` : ''}`;
+                }
 
                 // Badge indication
                 const badge = document.getElementById('container-badge');
