@@ -159,6 +159,44 @@ class AgentSupervisor:
         self._agents.pop(agent_id, None)
         return True
 
+    def rename_agent(self, agent_id: str, new_name: str) -> Dict[str, Any]:
+        """Rename an agent instance managed by this supervisor."""
+        clean_name = new_name.strip()
+        if not clean_name:
+            raise ValueError("New agent name cannot be empty.")
+
+        target_id = agent_id
+        if target_id not in self._agents:
+            # Check if target matches primary agent fallback
+            for aid, info in self._agents.items():
+                if info.get("is_primary"):
+                    target_id = aid
+                    break
+            else:
+                raise ValueError(f"Agent '{agent_id}' not found.")
+
+        agent = self._agents[target_id]
+        agent["name"] = clean_name
+
+        # If primary sentinel, update krokbot_config.yaml so the name persists
+        if agent.get("is_primary"):
+            try:
+                from krokbot.model_manager import load_config, save_config
+                cfg = load_config()
+                if "agent" not in cfg or not isinstance(cfg["agent"], dict):
+                    cfg["agent"] = {}
+                cfg["agent"]["name"] = clean_name
+                save_config(cfg)
+            except Exception:
+                pass
+
+        return {
+            "status": "success",
+            "agent_id": target_id,
+            "name": clean_name,
+            "is_primary": agent.get("is_primary", False)
+        }
+
 _global_supervisor: Optional[AgentSupervisor] = None
 
 def get_supervisor() -> AgentSupervisor:

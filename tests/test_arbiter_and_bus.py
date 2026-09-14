@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 from krokbot.arbiter import InferenceArbiter, get_inference_arbiter
 from krokbot.bus import KrokBus, get_event_bus
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_arbiter_priority_queueing():
     arbiter = InferenceArbiter()
     order = []
@@ -24,7 +24,7 @@ async def test_arbiter_priority_queueing():
     assert "start-bg" in order
     assert "start-urgent" in order
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_krokbus_pub_sub():
     bus = KrokBus()
     received = []

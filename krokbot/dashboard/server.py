@@ -581,10 +581,12 @@ def list_models_endpoint():
     from krokbot.model_manager import load_config, get_available_models
     cfg = load_config()
     available = get_available_models()
+    active_cfg = cfg.get("model", {})
     return {
         "available": available,
         "catalog": cfg.get("catalog", {}),
-        "active_config": cfg.get("model", {})
+        "active_config": active_cfg,
+        "active_model": active_cfg.get("filename") or active_cfg.get("name") or "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
     }
 
 @app.delete("/api/models/{filename}")
@@ -791,6 +793,28 @@ def remove_agent_endpoint(agent_id: str):
     if not success:
         raise HTTPException(status_code=400, detail=f"Cannot remove agent '{agent_id}' (not found or protected primary agent).")
     return {"status": "success", "message": f"Agent '{agent_id}' removed from container."}
+
+@app.post("/api/agent/rename")
+@app.post("/api/v1/agent/rename")
+@app.post("/api/agents/{agent_id}/rename")
+@app.post("/api/v1/agents/{agent_id}/rename")
+def rename_agent_endpoint(payload: Dict[str, Any], agent_id: Optional[str] = None):
+    """Rename an agent instance (primary or sub-agent worker)."""
+    from krokbot.supervisor import get_supervisor
+    sup = get_supervisor()
+    aid = agent_id or payload.get("id") or payload.get("agent_id") or "krok-prime-01"
+    new_name = payload.get("name") or payload.get("agent_name") or payload.get("new_name")
+    if not new_name:
+        raise HTTPException(status_code=400, detail="New agent name is required.")
+    try:
+        res = sup.rename_agent(aid, new_name)
+        if agent_instance_ref and (res.get("is_primary") or aid == getattr(agent_instance_ref, "agent_id", "krok-prime-01")):
+            agent_instance_ref.agent_name = new_name
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to rename agent: {e}")
 
 @app.post("/api/agents/{agent_id}/chat")
 @app.post("/api/agents/{agent_id}/prompt")

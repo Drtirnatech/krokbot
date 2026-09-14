@@ -72,3 +72,19 @@ def test_dashboard_agent_deployment_endpoints(tmp_path):
         r_stop = client.post("/api/agents/krok-sub-99/stop")
         assert r_stop.status_code == 200
         assert r_stop.json()["status"] == "success"
+
+def test_supervisor_rename_agent():
+    sup = get_supervisor()
+    
+    # Rename primary agent
+    res = sup.rename_agent("krok-prime-01", "KrokBot Master Orin")
+    assert res["status"] == "success"
+    assert res["name"] == "KrokBot Master Orin"
+
+    agents = {a["id"]: a["name"] for a in sup.list_agents()}
+    assert agents["krok-prime-01"] == "KrokBot Master Orin"
+
+    # Rename via endpoint
+    r_rename = client.post("/api/agent/rename", json={"name": "KrokBot Sentinel Prime"})
+    assert r_rename.status_code == 200
+    assert r_rename.json()["name"] == "KrokBot Sentinel Prime"

@@ -36,12 +36,12 @@ export const agentClient = {
       const c = metrics.container || {};
 
       // 3. Fetch active model
-      let activeModel = 'Qwen3-4B-Q4_K_M.gguf';
+      let activeModel = 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf';
       try {
         const modelsRes = await fetch(`${cleanUrl}/api/models`, { signal: AbortSignal.timeout(3500) });
         if (modelsRes.ok) {
           const modelsData = await modelsRes.json();
-          activeModel = modelsData.active_model || activeModel;
+          activeModel = modelsData.active_model || modelsData.active_config?.filename || modelsData.active_config?.name || activeModel;
         }
       } catch (err) {
         // ignore model fetch timeout
@@ -97,6 +97,20 @@ export const agentClient = {
     if (!res.ok) {
       const err = await res.text();
       throw new Error(`Failed to deploy agent: ${err}`);
+    }
+    return res.json();
+  },
+
+  async renameAgent(endpointUrl: string, agentId: string, newName: string) {
+    const cleanUrl = endpointUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/agents/${encodeURIComponent(agentId)}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: agentId, name: newName })
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Failed to rename agent: ${err}`);
     }
     return res.json();
   },

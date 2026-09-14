@@ -39,7 +39,7 @@ export function initSchema(db: DatabaseSync) {
       name TEXT NOT NULL,
       ip_address TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'online',
-      active_model TEXT NOT NULL DEFAULT 'Qwen3-4B-Q4_K_M.gguf',
+      active_model TEXT NOT NULL DEFAULT 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf',
       hardware_info TEXT,
       last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -153,7 +153,7 @@ export const dbService = {
       node.name,
       node.ip_address,
       node.status || 'online',
-      node.active_model || 'Qwen3-4B-Q4_K_M.gguf',
+      node.active_model || 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf',
       node.hardware_info || null
     );
   },
@@ -201,6 +201,18 @@ export const dbService = {
     // Ensure any cascaded records are purged
     db.prepare('DELETE FROM agents WHERE node_id = ?').run(id);
     db.prepare('DELETE FROM telemetry WHERE node_id = ?').run(id);
+  },
+
+  renameNode(id: string, name: string): void {
+    const db = getDb();
+    const stmt = db.prepare('UPDATE nodes SET name = ? WHERE id = ?');
+    stmt.run(name, id);
+  },
+
+  renameAgent(id: string, name: string): void {
+    const db = getDb();
+    const stmt = db.prepare('UPDATE agents SET name = ? WHERE id = ?');
+    stmt.run(name, id);
   },
 
   recordTelemetry(telemetry: { node_id: string; cpu_percent: number; memory_used_gb: number; memory_percent: number; storage_mb: number }): void {

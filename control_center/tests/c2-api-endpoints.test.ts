@@ -212,5 +212,17 @@ describe('C2 Fleet API Endpoints & Multi-Agent Operations', () => {
       const data = await res.json();
       assert.equal(data.status, 'success');
     });
+
+    it('POST /api/fleet/nodes/[nodeId]/rename should rename master node', async () => {
+      const res = await fetch(`${BASE_URL}/api/fleet/nodes/node-jetson-primary/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Workstation / Jetson Master Node' })
+      });
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.status, 'success');
+      assert.equal(data.name, 'Workstation / Jetson Master Node');
+    });
   });
 });

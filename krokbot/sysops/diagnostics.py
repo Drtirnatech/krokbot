@@ -47,8 +47,8 @@ class EdgeDiagnostics:
             except Exception:
                 pass
 
-        # 2. Check psutil hardware sensors
-        if not temps and hasattr(psutil, "sensors_temperatures"):
+        # 2. Check psutil hardware sensors (non-Windows)
+        if not temps and hasattr(psutil, "sensors_temperatures") and os.name != "nt":
             try:
                 sensor_data = psutil.sensors_temperatures()
                 if sensor_data:
@@ -117,7 +117,7 @@ class EdgeDiagnostics:
         """
         procs = []
         curr_pid = os.getpid()
-        for p in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_info', 'status']):
+        for p in psutil.process_iter(['pid', 'name', 'memory_info', 'status']):
             try:
                 mem_info = p.info.get('memory_info')
                 rss_mb = round(mem_info.rss / (1024 * 1024), 1) if mem_info else 0.0
@@ -130,7 +130,7 @@ class EdgeDiagnostics:
                     "name": name,
                     "cmd": name,
                     "status": p.info.get('status') or 'running',
-                    "cpu_percent": round(p.info.get('cpu_percent') or 0.0, 1),
+                    "cpu_percent": 0.0,
                     "memory_rss_mb": rss_mb,
                     "is_protected": is_prot
                 })

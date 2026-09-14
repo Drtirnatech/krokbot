@@ -124,6 +124,51 @@ export default function ControlCenterDashboard() {
     status: 'processing' | 'done';
   } | null>(null);
 
+  // Renaming Modal State
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [renameType, setRenameType] = useState<'node' | 'agent'>('node');
+  const [renameTargetId, setRenameTargetId] = useState('');
+  const [renameNodeId, setRenameNodeId] = useState('');
+  const [renameNameInput, setRenameNameInput] = useState('');
+  const [renaming, setRenaming] = useState(false);
+
+  const openRenameModal = (type: 'node' | 'agent', targetId: string, currentName: string, nodeId: string) => {
+    setRenameType(type);
+    setRenameTargetId(targetId);
+    setRenameNodeId(nodeId);
+    setRenameNameInput(currentName);
+    setRenameModalOpen(true);
+  };
+
+  const handleRenameSubmit = async () => {
+    if (!renameNameInput.trim()) return;
+    setRenaming(true);
+    try {
+      const url = renameType === 'node'
+        ? `/api/fleet/nodes/${renameNodeId}/rename`
+        : `/api/fleet/nodes/${renameNodeId}/agents/${renameTargetId}/rename`;
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: renameNameInput.trim() })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to rename target');
+      }
+
+      setRenameModalOpen(false);
+      await fetchFleet();
+      await fetchAuditLogs();
+    } catch (err: any) {
+      alert(`Rename Error: ${err.message}`);
+    } finally {
+      setRenaming(false);
+    }
+  };
+
   const [inlineConfirmations, setInlineConfirmations] = useState<Record<string, {
     label: string;
     value: string;
@@ -447,9 +492,10 @@ export default function ControlCenterDashboard() {
       setModelModalNode(null);
       await fetchFleet();
       await fetchAuditLogs();
-      // Adaptive rapid follow-up sweeps at +1.2s and +2.8s to capture stabilized working set immediately
-      setTimeout(() => { fetchFleet(); fetchAuditLogs(); }, 1200);
-      setTimeout(() => { fetchFleet(); fetchAuditLogs(); }, 2800);
+      // Adaptive rapid follow-up sweeps at +1.5s, +3.5s, and +5.5s to capture stabilized working set & active model immediately after llama.cpp reloads
+      setTimeout(() => { fetchFleet(); fetchAuditLogs(); }, 1500);
+      setTimeout(() => { fetchFleet(); fetchAuditLogs(); }, 3500);
+      setTimeout(() => { fetchFleet(); fetchAuditLogs(); }, 5500);
     } catch (err: any) {
       alert(`Switch Model Error: ${err.message}`);
     } finally {
@@ -812,6 +858,17 @@ export default function ControlCenterDashboard() {
                         <div>
                           <div className="flex items-center gap-2">
                             <h3 className="text-sm sm:text-base font-bold text-white tracking-wide">{node.name}</h3>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openRenameModal('node', node.id, node.name, node.id);
+                              }}
+                              className="text-[#5b7a6b] hover:text-[#00ff66] text-xs p-1 rounded hover:bg-[#15231b] transition-colors cursor-pointer"
+                              title={`Rename Edge Node ${node.name}`}
+                            >
+                              ✏️
+                            </button>
                             <span className="text-[10px] px-2 py-0.5 rounded bg-[#15231b] text-[#7da895] border border-[#23382c] font-mono">
                               {node.id}
                             </span>
@@ -850,11 +907,11 @@ export default function ControlCenterDashboard() {
                         {/* Shared Model Chip */}
                         <div
                           className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#090e0b] border border-[#17261e] text-[11px] max-w-[220px] truncate"
-                          title={`Active Shared Model: ${node.active_model}`}
+                          title={`Active Shared Model: ${health?.activeModel || node.active_model}`}
                         >
                           <span className="text-[#ffb000]">🧠</span>
                           <span className="text-[#d8a834] truncate font-mono text-[10px]">
-                            {node.active_model.split('/').pop() || node.active_model}
+                            {(health?.activeModel || node.active_model).split('/').pop() || (health?.activeModel || node.active_model)}
                           </span>
                         </div>
 
@@ -986,18 +1043,18 @@ export default function ControlCenterDashboard() {
                           {/* Active Shared Model */}
                           <div className="p-3 rounded-lg bg-[#0c1310] border border-[#16231c] space-y-1">
                             <span className="text-[11px] text-[#5b7a6b] block">SHARED INFERENCE MODEL</span>
-                            <div className="text-xs font-bold text-[#ffb000] truncate font-mono" title={node.active_model}>
-                              {node.active_model}
+                            <div className="text-xs font-bold text-[#ffb000] truncate font-mono" title={health?.activeModel || node.active_model}>
+                              {health?.activeModel || node.active_model}
                             </div>
                             <span className="text-[10px] text-[#5b7a6b]">Llama.cpp Arbiter on 127.0.0.1:8081</span>
                           </div>
                         </div>
 
-                        {/* Edge Node Self-Healing Watchdog Policies */}
+                        {/* Edge Node Automated Operations & Optimization */}
                         <div className="p-3.5 sm:p-4 border-b border-[#141f19] bg-[#070b09] flex flex-wrap items-center justify-between gap-3">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold uppercase tracking-wider text-[#7da895] flex items-center gap-1.5">
-                              <span>🛡️ Self-Healing Watchdog Policies</span>
+                              <span>🛡️ Automated Operations &amp; Optimization</span>
                             </span>
                           </div>
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1101,8 +1158,19 @@ export default function ControlCenterDashboard() {
                                         </span>
 
                                         {/* Agent Name */}
-                                        <span className="text-xs font-bold text-white tracking-wide">
-                                          {agent.name}
+                                        <span className="text-xs font-bold text-white tracking-wide flex items-center gap-1.5">
+                                          <span>{agent.name}</span>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openRenameModal('agent', agent.id, agent.name, node.id);
+                                            }}
+                                            className="text-[#5b7a6b] hover:text-[#00ff66] text-xs p-0.5 rounded hover:bg-[#15231b] transition-colors cursor-pointer"
+                                            title={`Rename agent ${agent.name}`}
+                                          >
+                                            ✏️
+                                          </button>
                                         </span>
 
                                         {/* Agent ID */}
@@ -2060,6 +2128,66 @@ export default function ControlCenterDashboard() {
                 className="px-5 py-2 rounded bg-[#00ff66] text-black font-bold text-xs hover:bg-[#1aff75] transition-all cursor-pointer shadow-[0_0_10px_rgba(0,255,102,0.3)]"
               >
                 Acknowledge &amp; Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RENAME EDGE NODE OR AGENT CONTAINER */}
+      {renameModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#0b120e] border border-[#1b2b21] rounded-xl p-5 sm:p-6 w-full max-w-md shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#15231b] pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <span>✏️</span>
+                <span>Rename {renameType === 'node' ? 'Edge Master Node' : 'Agent Container'}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setRenameModalOpen(false)}
+                className="text-[#5b7a6b] hover:text-white text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-[#7da895] font-mono block uppercase">
+                {renameType === 'node' ? 'Node Name' : 'Agent Name'} ({renameTargetId})
+              </label>
+              <input
+                type="text"
+                value={renameNameInput}
+                onChange={(e) => setRenameNameInput(e.target.value)}
+                placeholder="Enter new name..."
+                className="w-full bg-[#101b15] border border-[#1d3126] rounded-lg px-3.5 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#00ff66]"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleRenameSubmit();
+                }}
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setRenameModalOpen(false)}
+                className="px-4 py-2 rounded-lg bg-[#141f19] hover:bg-[#1d2c24] text-xs font-bold text-[#8aa89b] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={renaming || !renameNameInput.trim()}
+                onClick={handleRenameSubmit}
+                className="px-4 py-2 rounded-lg bg-[#00ff66] hover:bg-[#00cc52] text-xs font-bold text-[#06120a] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+              >
+                {renaming ? (
+                  <span>Saving...</span>
+                ) : (
+                  <span>Save Name</span>
+                )}
               </button>
             </div>
           </div>

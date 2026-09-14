@@ -13,7 +13,7 @@ export async function GET() {
         name: 'Workstation / Jetson Master Node',
         ip_address: 'http://localhost:5150',
         status: 'online',
-        active_model: 'Qwen3-4B-Q4_K_M.gguf',
+        active_model: 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf',
         hardware_info: JSON.stringify({ device: 'Local KrokBot Container', arch: 'x86_64/ARM64' })
       });
       nodes = dbService.getNodes();
