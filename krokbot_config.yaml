@@ -1,7 +1,7 @@
 version: '1.0'
 model:
-  name: Qwen2.5 Coder 1.5B Instruct (Q4_K_M)
-  filename: qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+  name: Qwen3 4B Instruct (Q4_K_M)
+  filename: Qwen3-4B-Q4_K_M.gguf
   url: ''
   context_size: 2048
   chat_format: chatml
