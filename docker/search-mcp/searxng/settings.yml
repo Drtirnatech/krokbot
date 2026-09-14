@@ -1,0 +1,35 @@
+use_default_settings: true
+general:
+  debug: false
+  instance_name: "KrokBot-LocalSearch"
+
+server:
+  port: 8080
+  bind_address: "127.0.0.1"
+  secret_key: "krokbot_search_mcp_secret_local_key"
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "auto"
+  formats:
+    - html
+    - json
+
+engines:
+  - name: google
+    engine: google
+    shortcut: go
+    use_mobile_ui: false
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+  - name: bing
+    engine: bing
+    shortcut: bi
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+  - name: github
+    engine: github
+    shortcut: gh
