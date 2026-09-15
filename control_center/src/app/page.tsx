@@ -100,8 +100,13 @@ export default function ControlCenterDashboard() {
   const [pendingNodes, setPendingNodes] = useState<PendingNode[]>([]);
   const [enrollModalOpen, setEnrollModalOpen] = useState(false);
   const [enrollTab, setEnrollTab] = useState<'automated' | 'manual' | 'direct'>('automated');
+  const [shellFormat, setShellFormat] = useState<'powershell' | 'bash' | 'prompt_ps' | 'prompt_bash' | 'single'>('powershell');
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
   const [generatedCommand, setGeneratedCommand] = useState<string | null>(null);
+  const [generatedBashCommand, setGeneratedBashCommand] = useState<string | null>(null);
+  const [generatedPsCommand, setGeneratedPsCommand] = useState<string | null>(null);
+  const [generatedPromptBashCommand, setGeneratedPromptBashCommand] = useState<string | null>(null);
+  const [generatedPromptPsCommand, setGeneratedPromptPsCommand] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState(false);
   const [approvingNodeId, setApprovingNodeId] = useState<string | null>(null);
@@ -166,6 +171,84 @@ export default function ControlCenterDashboard() {
   const [renameNodeId, setRenameNodeId] = useState('');
   const [renameNameInput, setRenameNameInput] = useState('');
   const [renaming, setRenaming] = useState(false);
+
+  // Custom Deletion Modal State
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteType, setDeleteType] = useState<'node' | 'agent'>('agent');
+  const [deleteTargetId, setDeleteTargetId] = useState('');
+  const [deleteTargetName, setDeleteTargetName] = useState('');
+  const [deleteNodeId, setDeleteNodeId] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteComplete, setDeleteComplete] = useState(false);
+  const [deleteSteps, setDeleteSteps] = useState<Array<{ step: string; description: string; status: 'pending' | 'running' | 'success' | 'warning' | 'error'; instructions?: string }>>([]);
+ 
+  const openDeleteModal = (type: 'node' | 'agent', targetId: string, targetName: string, nodeId: string) => {
+    setDeleteType(type);
+    setDeleteTargetId(targetId);
+    setDeleteTargetName(targetName);
+    setDeleteNodeId(nodeId);
+    setDeleteError(null);
+    setDeleteComplete(false);
+    setDeleting(false);
+    setDeleteSteps(
+      type === 'agent'
+        ? [
+            { step: 'supervisor_contact', description: 'Contacting node supervisor & checking status', status: 'pending' },
+            { step: 'process_termination', description: 'Stopping worker process / container', status: 'pending' },
+            { step: 'docker_teardown', description: 'Purging container workspace & Docker resources', status: 'pending' },
+            { step: 'database_cleanup', description: 'Updating C2 fleet database & audit log', status: 'pending' }
+          ]
+        : [
+            { step: 'remote_disenroll', description: 'Sending disenrollment signal to edge node', status: 'pending' },
+            { step: 'container_teardown', description: 'Terminating active container connections', status: 'pending' },
+            { step: 'database_cascade_purge', description: 'Purging node, subagents, and telemetry from C2 DB', status: 'pending' }
+          ]
+    );
+    setDeleteModalOpen(true);
+  };
+
+  const handleExecuteDelete = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+
+    setDeleteSteps(prev => prev.map((s, i) => i === 0 ? { ...s, status: 'running' } : s));
+
+    try {
+      const url = deleteType === 'node'
+        ? `/api/fleet/nodes/${encodeURIComponent(deleteTargetId)}`
+        : `/api/fleet/nodes/${encodeURIComponent(deleteNodeId)}/agents/${encodeURIComponent(deleteTargetId)}`;
+
+      const res = await fetch(url, { method: 'DELETE' });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setDeleteError(data.message || 'Delete operation failed.');
+        setDeleteSteps(prev => prev.map(s => s.status === 'running' ? { ...s, status: 'error' } : s));
+        return;
+      }
+
+      if (data.steps && Array.isArray(data.steps)) {
+        setDeleteSteps(data.steps.map((st: any) => ({
+          step: st.step,
+          description: st.description,
+          status: st.status as 'success' | 'warning' | 'error',
+          instructions: st.instructions
+        })));
+      } else {
+        setDeleteSteps(prev => prev.map(s => ({ ...s, status: 'success' })));
+      }
+
+      setDeleteComplete(true);
+      await fetchFleet();
+      await fetchAuditLogs();
+    } catch (err: any) {
+      setDeleteError(err.message || 'Network error during deletion');
+      setDeleteSteps(prev => prev.map(s => s.status === 'running' ? { ...s, status: 'error' } : s));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const openRenameModal = (type: 'node' | 'agent', targetId: string, currentName: string, nodeId: string) => {
     setRenameType(type);
@@ -477,39 +560,13 @@ export default function ControlCenterDashboard() {
   };
 
   // Permanently Remove Agent
-  const handleDeleteAgent = async (nodeId: string, agentId: string, agentName: string) => {
-    if (!confirm(`Are you sure you want to permanently remove agent "${agentName}" (${agentId}) from container node?`)) return;
-    try {
-      const res = await fetch(`/api/fleet/nodes/${encodeURIComponent(nodeId)}/agents/${encodeURIComponent(agentId)}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || 'Delete agent failed');
-      }
-      await fetchFleet();
-      await fetchAuditLogs();
-    } catch (err: any) {
-      alert(`Delete Agent Error: ${err.message}`);
-    }
+  const handleDeleteAgent = (nodeId: string, agentId: string, agentName: string) => {
+    openDeleteModal('agent', agentId, agentName, nodeId);
   };
 
   // Permanently Remove Node from Fleet
-  const handleDeleteNode = async (nodeId: string, nodeName: string) => {
-    if (!confirm(`Are you sure you want to remove edge node "${nodeName}" (${nodeId}) from C2 fleet?`)) return;
-    try {
-      const res = await fetch(`/api/fleet/nodes/${encodeURIComponent(nodeId)}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || 'Delete node failed');
-      }
-      await fetchFleet();
-      await fetchAuditLogs();
-    } catch (err: any) {
-      alert(`Delete Node Error: ${err.message}`);
-    }
+  const handleDeleteNode = (nodeId: string, nodeName: string) => {
+    openDeleteModal('node', nodeId, nodeName, nodeId);
   };
 
   // Open Model Switch Modal
@@ -678,6 +735,10 @@ export default function ControlCenterDashboard() {
       if (res.ok && data.token) {
         setGeneratedToken(data.token);
         setGeneratedCommand(data.docker_command);
+        setGeneratedBashCommand(data.bash_command || data.docker_command);
+        setGeneratedPsCommand(data.powershell_command || data.docker_command);
+        setGeneratedPromptBashCommand(data.prompt_bash_command || data.docker_command);
+        setGeneratedPromptPsCommand(data.prompt_powershell_command || data.docker_command);
         setCopiedCommand(false);
       } else {
         alert(`Token generation failed: ${data.message || 'Unknown error'}`);
@@ -1058,10 +1119,10 @@ export default function ControlCenterDashboard() {
             <div className="p-12 border border-[#16221b] rounded-lg bg-[#0a0f0c] text-center space-y-3">
               <p className="text-sm text-[#7a998b]">No edge nodes registered yet.</p>
               <button
-                onClick={() => setRegisterModalOpen(true)}
-                className="px-4 py-2 rounded bg-[#00ff66] text-black font-bold text-xs"
+                onClick={() => setEnrollModalOpen(true)}
+                className="px-4 py-2 rounded bg-[#00ff66] text-black font-bold text-xs hover:bg-[#1aff75] transition-all cursor-pointer shadow-[0_0_12px_rgba(0,255,102,0.3)]"
               >
-                Register Local or Jetson Node
+                Register a new Agent
               </button>
             </div>
           ) : (
@@ -2224,24 +2285,79 @@ export default function ControlCenterDashboard() {
                       </button>
                     </div>
 
-                    <div className="relative">
-                      <pre className="p-3.5 rounded bg-[#060a08] border border-[#1b3323] text-[#00ff66] font-mono text-[11px] overflow-x-auto whitespace-pre-wrap break-all select-all">
-                        {generatedCommand}
-                      </pre>
+                    {/* Shell Environment Tabs */}
+                    <div className="flex flex-wrap items-center gap-1.5 border-b border-[#1b3323] pb-2 text-[10px] font-mono">
+                      <span className="text-[#5b7a6b] uppercase mr-1">Shell / OS:</span>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (generatedCommand) {
-                            navigator.clipboard.writeText(generatedCommand);
-                            setCopiedCommand(true);
-                            setTimeout(() => setCopiedCommand(false), 2500);
-                          }
-                        }}
-                        className="absolute top-2 right-2 px-3 py-1 rounded bg-[#102419] hover:bg-[#183625] border border-[#00ff66]/40 text-[#00ff66] text-[10px] font-bold transition-all cursor-pointer"
+                        onClick={() => setShellFormat('powershell')}
+                        className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                          shellFormat === 'powershell' ? 'bg-[#00ff66] text-black font-bold' : 'bg-[#0d1712] text-[#8aa89b] hover:text-white'
+                        }`}
                       >
-                        {copiedCommand ? '✓ COPIED!' : '📋 Copy Command'}
+                        PowerShell (Windows)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShellFormat('bash')}
+                        className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                          shellFormat === 'bash' ? 'bg-[#00ff66] text-black font-bold' : 'bg-[#0d1712] text-[#8aa89b] hover:text-white'
+                        }`}
+                      >
+                        Bash (Linux/Jetson)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShellFormat('prompt_ps')}
+                        className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                          shellFormat === 'prompt_ps' ? 'bg-[#00e5ff] text-black font-bold' : 'bg-[#0d1712] text-[#8aa89b] hover:text-white'
+                        }`}
+                        title="PowerShell command that prompts the operator to enter their token"
+                      >
+                        Interactive PS (Prompts Token)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShellFormat('prompt_bash')}
+                        className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                          shellFormat === 'prompt_bash' ? 'bg-[#00e5ff] text-black font-bold' : 'bg-[#0d1712] text-[#8aa89b] hover:text-white'
+                        }`}
+                        title="Bash command that prompts the operator to enter their token"
+                      >
+                        Interactive Bash (Prompts Token)
                       </button>
                     </div>
+
+                    {/* Command Output Block */}
+                    {(() => {
+                      const activeCmd =
+                        shellFormat === 'powershell' ? (generatedPsCommand || generatedCommand) :
+                        shellFormat === 'bash' ? (generatedBashCommand || generatedCommand) :
+                        shellFormat === 'prompt_ps' ? (generatedPromptPsCommand || generatedCommand) :
+                        shellFormat === 'prompt_bash' ? (generatedPromptBashCommand || generatedCommand) :
+                        generatedCommand;
+
+                      return (
+                        <div className="relative">
+                          <pre className="p-3.5 rounded bg-[#060a08] border border-[#1b3323] text-[#00ff66] font-mono text-[11px] overflow-x-auto whitespace-pre-wrap break-all select-all leading-relaxed">
+                            {activeCmd}
+                          </pre>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (activeCmd) {
+                                navigator.clipboard.writeText(activeCmd);
+                                setCopiedCommand(true);
+                                setTimeout(() => setCopiedCommand(false), 2500);
+                              }
+                            }}
+                            className="absolute top-2 right-2 px-3 py-1 rounded bg-[#102419] hover:bg-[#183625] border border-[#00ff66]/40 text-[#00ff66] text-[10px] font-bold transition-all cursor-pointer"
+                          >
+                            {copiedCommand ? '✓ COPIED!' : '📋 Copy Command'}
+                          </button>
+                        </div>
+                      );
+                    })()}
 
                     <div className="p-3 rounded bg-[#09120d] border border-[#182b20] space-y-1.5 text-[11px] text-[#8aa89b]">
                       <div className="font-bold text-white">Next Steps for Field Engineer:</div>
@@ -2586,12 +2702,232 @@ export default function ControlCenterDashboard() {
                 onClick={handleRenameSubmit}
                 className="px-4 py-2 rounded-lg bg-[#00ff66] hover:bg-[#00cc52] text-xs font-bold text-[#06120a] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
               >
-                {renaming ? (
-                  <span>Saving...</span>
-                ) : (
-                  <span>Save Name</span>
-                )}
+                {renaming ? <span>Saving...</span> : <span>Save Name</span>}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: INSPECT NODE PROCESS TABLE */}
+      {processModalNode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#0b120e] border border-[#1b2b21] rounded-xl p-5 sm:p-6 w-full max-w-2xl shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#15231b] pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <span>⚙️</span>
+                <span>Process Inspector: {processModalNode.name}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setProcessModalNode(null)}
+                className="text-[#5b7a6b] hover:text-white text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-xs text-[#8aa89b] flex items-center justify-between">
+                <span>Active Container &amp; Node Processes ({processList.length})</span>
+                <span className="text-[10px] text-[#5b7a6b]">Critical system daemons are protected</span>
+              </div>
+
+              <div className="max-h-80 overflow-y-auto border border-[#16231c] rounded-lg bg-[#080d0a]">
+                {loadingProcesses ? (
+                  <div className="p-8 text-center text-xs text-[#5b7a6b] space-y-2">
+                    <div className="inline-block w-5 h-5 border-2 border-[#00e5ff] border-t-transparent rounded-full animate-spin mb-1"></div>
+                    <div>SCANNING NODE PROCESS TABLE...</div>
+                  </div>
+                ) : processList.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-[#5b7a6b]">
+                    No processes found or node unreachable.
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-[#16231c] bg-[#0d1410] text-[#5b7a6b] text-[10px] uppercase font-mono">
+                        <th className="p-2.5">PID</th>
+                        <th className="p-2.5">Process Name</th>
+                        <th className="p-2.5">Memory (RSS)</th>
+                        <th className="p-2.5">CPU %</th>
+                        <th className="p-2.5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#131d17] font-mono text-[11px]">
+                      {processList.map((p) => {
+                        const isProtected = p.is_protected === true;
+                        return (
+                          <tr key={p.pid} className="hover:bg-[#101813] transition-colors">
+                            <td className="p-2.5 text-[#00ff66]">{p.pid}</td>
+                            <td className="p-2.5 text-white font-sans font-medium flex items-center gap-1.5">
+                              <span>{p.name}</span>
+                              {isProtected && (
+                                <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-[#1f2d24] text-[#70d49b] border border-[#2e4738]">
+                                  PROTECTED
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2.5 text-[#00e5ff]">{p.memory_rss_mb?.toFixed(1) || '0.0'} MB</td>
+                            <td className="p-2.5 text-[#ffb000]">{p.cpu_percent?.toFixed(1) || '0.0'}%</td>
+                            <td className="p-2.5 text-right">
+                              {isProtected ? (
+                                <span className="text-[10px] text-[#4a6356] italic">System Core</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={killingPid === p.pid}
+                                  onClick={() => handleKillProcess(processModalNode.id, p.pid)}
+                                  className="px-2 py-0.5 rounded bg-[#241315] hover:bg-[#3d181c] border border-[#ff3344]/40 text-[#ff5566] text-[10px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                                >
+                                  {killingPid === p.pid ? 'Killing...' : 'Terminate'}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-between items-center border-t border-[#16231c]">
+              <span className="text-[11px] text-[#5b7a6b]">
+                PID 1 and parent container supervisor processes cannot be killed.
+              </span>
+              <button
+                type="button"
+                onClick={() => setProcessModalNode(null)}
+                className="px-4 py-1.5 rounded bg-[#141e18] text-[#8aa89b] hover:bg-[#1a2720] text-xs font-semibold cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CUSTOM AGENT & NODE DELETION CONFIRMATION & PROGRESS */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn font-mono">
+          <div className="bg-[#0b120e] border border-[#ff3344]/40 rounded-xl p-5 sm:p-6 w-full max-w-lg shadow-[0_0_30px_rgba(255,51,68,0.2)] space-y-4 font-mono">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-[#241315] pb-3">
+              <h3 className="text-base font-bold text-[#ff5566] flex items-center gap-2">
+                <span>⚠️</span>
+                <span>Confirm {deleteType === 'node' ? 'Edge Node Removal' : 'Agent Container Deletion'}</span>
+              </h3>
+              {!deleting && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteModalOpen(false)}
+                  className="text-[#5b7a6b] hover:text-white text-sm cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Target Metadata Header */}
+            <div className="bg-[#181113] border border-[#381c1f] rounded-lg p-3 space-y-1">
+              <div className="text-xs text-[#a37075] uppercase font-bold">Target {deleteType === 'node' ? 'Master Node' : 'Agent Instance'}</div>
+              <div className="text-sm font-bold text-white flex items-center justify-between">
+                <span>{deleteTargetName}</span>
+                <span className="text-xs px-2 py-0.5 rounded bg-[#2c1719] text-[#ff8899] font-mono">{deleteTargetId}</span>
+              </div>
+            </div>
+
+            {/* Error Banner */}
+            {deleteError && (
+              <div className="p-3 bg-[#331114] border border-[#ff3344] rounded-lg text-xs text-[#ff99a8] font-mono leading-relaxed">
+                <span className="font-bold">Deletion Error:</span> {deleteError}
+              </div>
+            )}
+
+            {/* Step-by-Step Progress Checklist */}
+            <div className="space-y-2 py-1">
+              <div className="text-xs font-bold text-[#7da895] uppercase">Execution Progress Checklist</div>
+              <div className="space-y-2">
+                {deleteSteps.map((st, idx) => (
+                  <div key={idx} className="flex items-start gap-2.5 p-2.5 rounded bg-[#0f1a14] border border-[#18291f] text-xs">
+                    <span className="mt-0.5">
+                      {st.status === 'pending' && <span className="text-[#5b7a6b]">⏳</span>}
+                      {st.status === 'running' && <span className="text-[#00ff66] animate-pulse">🔄</span>}
+                      {st.status === 'success' && <span className="text-[#00ff66]">✅</span>}
+                      {st.status === 'warning' && <span className="text-[#ffaa00]">⚠️</span>}
+                      {st.status === 'error' && <span className="text-[#ff3344]">❌</span>}
+                    </span>
+                    <div className="flex-1 space-y-1">
+                      <div className={`font-semibold ${st.status === 'running' ? 'text-[#00ff66]' : st.status === 'error' ? 'text-[#ff5566]' : 'text-[#d0e0d8]'}`}>
+                        {st.description}
+                      </div>
+                      {st.instructions && (
+                        <div className="mt-1.5 p-2.5 bg-[#1b120c] border border-[#ffaa00]/40 rounded-md text-[11px] text-[#ffdd88] space-y-1">
+                          <div className="font-bold text-[#ffaa00] flex items-center justify-between gap-2">
+                            <span>🛠️ Admin Manual Teardown Instruction:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (st.instructions) {
+                                  const cmd = st.instructions.includes(': ') ? st.instructions.split(': ')[1] : st.instructions;
+                                  navigator.clipboard.writeText(cmd);
+                                  alert('Terminal command copied to clipboard!');
+                                }
+                              }}
+                              className="px-2 py-0.5 rounded bg-[#332211] hover:bg-[#443311] text-[10px] text-[#ffcc00] font-bold cursor-pointer transition-colors"
+                            >
+                              📋 Copy Command
+                            </button>
+                          </div>
+                          <code className="block p-1.5 bg-[#0d0906] rounded text-[#00ff66] font-mono break-all select-all">
+                            {st.instructions}
+                          </code>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#18291f]">
+              {!deleteComplete && !deleting && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteModalOpen(false)}
+                    className="px-4 py-2 rounded-lg bg-[#141f19] hover:bg-[#1d2c24] text-xs font-bold text-[#8aa89b] transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExecuteDelete}
+                    className="px-4 py-2 rounded-lg bg-[#ff3344] hover:bg-[#dd2233] text-xs font-bold text-white transition-all cursor-pointer shadow-[0_0_15px_rgba(255,51,68,0.4)] flex items-center gap-2"
+                  >
+                    <span>🗑️ Confirm &amp; Remove Permanently</span>
+                  </button>
+                </>
+              )}
+
+              {deleting && (
+                <div className="text-xs text-[#00ff66] font-bold py-2 flex items-center gap-2 animate-pulse">
+                  <span>🔄 Processing removal and cleaning host state...</span>
+                </div>
+              )}
+
+              {deleteComplete && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteModalOpen(false)}
+                  className="px-5 py-2 rounded-lg bg-[#00ff66] hover:bg-[#00cc52] text-xs font-bold text-[#06120a] transition-all cursor-pointer shadow-[0_0_12px_rgba(0,255,102,0.4)]"
+                >
+                  Close &amp; Complete
+                </button>
+              )}
             </div>
           </div>
         </div>

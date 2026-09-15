@@ -6,8 +6,8 @@ export async function GET() {
   try {
     let nodes = dbService.getNodes();
 
-    // Auto-seed local node if database is empty
-    if (nodes.length === 0) {
+    // Auto-seed local node ONLY once on initial system deployment
+    if (nodes.length === 0 && !dbService.isFleetSeeded()) {
       dbService.upsertNode({
         id: 'node-jetson-primary',
         name: 'Workstation / Jetson Master Node',
@@ -16,6 +16,7 @@ export async function GET() {
         active_model: 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf',
         hardware_info: JSON.stringify({ device: 'Local KrokBot Container', arch: 'x86_64/ARM64' })
       });
+      dbService.setFleetSeeded();
       nodes = dbService.getNodes();
     }
 

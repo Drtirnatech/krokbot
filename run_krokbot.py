@@ -148,9 +148,9 @@ def ensure_llamacpp_service() -> bool:
             except Exception as e:
                 print(f"      Failed to spawn llama_cpp.server: {e}")
 
-    # If external (e.g. docker network service) or took a moment to start, wait up to 15s
+    # If external (e.g. docker network service) or took a moment to start, wait up to 60s
     print(f"      Waiting for Llama.cpp at {LLAMACPP_URL} ...")
-    for _ in range(15):
+    for _ in range(60):
         time.sleep(1)
         if _probe_llamacpp(LLAMACPP_URL, timeout=2.0):
             return True
@@ -179,8 +179,7 @@ def main():
     # 3. Check Llama.cpp LLM
     llm_ready = ensure_llamacpp_service()
     if not llm_ready:
-        print("Exiting launch process due to missing LLM service.")
-        sys.exit(1)
+        print("[Notice] LLM engine is offline/unloaded. Starting KrokBot Agent in standby mode on port 5150...")
 
     # 4. Launch KrokBot Main
     print("\nStarting KrokBot Agent Orchestrator...\n")

@@ -4,3 +4,8 @@ __pycache__
 *.pyc
 .pytest_cache
 data
+models
+workspaces
+control_center/node_modules
+control_center/.next
+

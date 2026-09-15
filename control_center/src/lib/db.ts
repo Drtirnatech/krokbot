@@ -13,8 +13,8 @@ export function getDb(): DatabaseSync {
     if (DB_PATH !== ':memory:') {
       dbInstance.exec('PRAGMA journal_mode = WAL;');
     }
-    initSchema(dbInstance);
   }
+  initSchema(dbInstance);
   return dbInstance;
 }
 
@@ -108,6 +108,11 @@ export function initSchema(db: DatabaseSync) {
       progress_status TEXT,
       last_heartbeat DATETIME DEFAULT CURRENT_TIMESTAMP,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS app_metadata (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
     );
   `);
 }
@@ -470,5 +475,27 @@ export const dbService = {
     const db = getDb();
     const stmt = db.prepare('DELETE FROM pending_nodes WHERE id = ?');
     stmt.run(id);
+  },
+
+  isFleetSeeded(): boolean {
+    const db = getDb();
+    try {
+      db.exec("CREATE TABLE IF NOT EXISTS app_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);");
+      const row = db.prepare("SELECT value FROM app_metadata WHERE key = 'initial_seeded'").get() as { value: string } | undefined;
+      return !!(row && row.value === 'true');
+    } catch {
+      return false;
+    }
+  },
+
+  setFleetSeeded(): void {
+    const db = getDb();
+    try {
+      db.exec("CREATE TABLE IF NOT EXISTS app_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);");
+      const stmt = db.prepare("INSERT OR REPLACE INTO app_metadata (key, value) VALUES ('initial_seeded', 'true')");
+      stmt.run();
+    } catch {
+      // ignore
+    }
   }
 };

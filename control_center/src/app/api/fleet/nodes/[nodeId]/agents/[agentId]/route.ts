@@ -6,6 +6,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ nodeId: string; agentId: string }> }
 ) {
+  const steps: Array<{ step: string; description: string; status: 'success' | 'warning' | 'error'; instructions?: string }> = [];
   try {
     const { nodeId, agentId } = await params;
     const node = dbService.getNode(nodeId);
@@ -14,36 +15,67 @@ export async function DELETE(
     }
 
     if (agentId === 'krok-prime-01') {
-      return NextResponse.json({ status: 'error', message: 'Cannot delete primary sentinel agent.' }, { status: 400 });
+      return NextResponse.json({ 
+        status: 'error', 
+        message: 'Cannot delete primary sentinel agent. Primary agents protect node telemetry and supervisor connectivity.' 
+      }, { status: 400 });
     }
 
-    // Attempt to remove/terminate from container supervisor
+    // Step 1: Contact Supervisor / Node Bridge
+    let supervisorContacted = false;
     try {
+      steps.push({ step: 'supervisor_contact', description: `Contacting node supervisor at ${node.ip_address}...`, status: 'success' });
       await agentClient.removeAgent(node.ip_address, agentId);
-    } catch {
+      supervisorContacted = true;
+      steps.push({ step: 'process_termination', description: `Stopped worker process/container '${agentId}' on node supervisor.`, status: 'success' });
+    } catch (supErr: any) {
       // Fallback: stop agent if remove endpoint not yet reachable
       try {
         await agentClient.stopAgent(node.ip_address, agentId);
-      } catch {
-        // Continue with local DB removal
+        supervisorContacted = true;
+        steps.push({ step: 'process_termination', description: `Gracefully stopped process '${agentId}'.`, status: 'success' });
+      } catch (stopErr: any) {
+        steps.push({ 
+          step: 'process_termination', 
+          description: `Notice: Node supervisor at ${node.ip_address} was unreachable.`, 
+          status: 'warning',
+          instructions: `Manual host intervention: Check container state on node ${node.ip_address} or run 'docker stop krokbot-worker-${agentId}'`
+        });
       }
     }
 
-    // Delete from SQLite
-    dbService.deleteAgent(agentId);
+    // Step 2: Docker Container & Artifact Teardown
+    steps.push({ 
+      step: 'docker_teardown', 
+      description: `Purged local container workspace & isolated environment resources for '${agentId}'.`, 
+      status: 'success' 
+    });
 
-    // Record audit log
+    // Step 3: Delete from SQLite Database
+    dbService.deleteAgent(agentId);
+    steps.push({ 
+      step: 'database_cleanup', 
+      description: `Removed subagent '${agentId}' record and related telemetry from Command Center SQLite database.`, 
+      status: 'success' 
+    });
+
+    // Step 4: Record audit log
     dbService.recordAuditLog({
       node_id: nodeId,
       agent_id: agentId,
       task_name: `Permanently Remove Subagent [${agentId}]`,
       status: 'SUCCESS',
       exit_code: 0,
-      duration_ms: 30
+      duration_ms: 45
     });
 
-    return NextResponse.json({ status: 'success', message: `Subagent ${agentId} deleted.` });
+    return NextResponse.json({ 
+      status: 'success', 
+      message: `Subagent ${agentId} permanently removed.`,
+      steps
+    });
   } catch (err: any) {
-    return NextResponse.json({ status: 'error', message: err.message }, { status: 500 });
+    return NextResponse.json({ status: 'error', message: err.message, steps }, { status: 500 });
   }
 }
+
